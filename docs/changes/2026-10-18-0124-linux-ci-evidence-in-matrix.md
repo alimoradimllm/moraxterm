@@ -1,0 +1,7 @@
+# Record the Linux package CI result in the terminal test matrix
+
+The terminal session's pull request 7 recorded a Linux Debian package build in Debian WSL and reported a 135.84 MiB .deb. That size is the Windows-only 137 MB embedded runtime archive being packaged, which was fixed before the CI job existed, so the figure no longer describes what is built. The same pull request also rewrote the installed-app table in a way that removed the split-view, panel-survival and MultiExec rows and dropped the "after fix" notes, although those results are real and reproducible, and it conflicted with main. This change keeps the existing table and replaces the single "Linux: NOT TESTED" cell with two rows: the CI-backed headless result, and the still-untested real desktop.
+
+Verified: every number in the new row was read from the passing GitHub Actions run 39066872034 and confirmed again on the later runs: the .deb is 4,459,012 bytes, the .rpm 4,460,723 bytes, the package contents listing has no EmbeddedUnix file, the container install and the 8 second xvfb start succeeded. The installed-app results already in the table were not touched.
+
+Open: nobody has run the Linux app on a real desktop, installed the .rpm, or run the installed-app UI checks on Linux. The Windows installed-app evidence from pull request 7 (settings navigation, typed command, Unicode, Ctrl+C, 3000 lines, resize) is already on main from earlier work and is not repeated.
