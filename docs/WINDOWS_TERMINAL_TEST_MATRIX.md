@@ -61,19 +61,16 @@ The matrix is intentionally separate from the release checklist: passing the
 basic Local Shell test does not establish full-screen, keyboard, resize, or
 SSH authentication parity.
 
-## Installed-app checks (2026-10-17, built exe, isolated profile)
+## Installed-app checks (2026-10-17, rebuilt executable, isolated profile)
 
-Run with `scripts/ui_smoke_test.py` against the exe built from `main` plus the fixes in this commit. PowerShell local shell only.
+Run with `scripts/ui_launch_test_instance.py` and `scripts/ui_smoke_test.py` against the rebuilt `moraxterm-linux-ui.exe`. PowerShell local shell only.
 
 | Check | Result |
 |---|---|
-| Click a session while Settings is open | PASS (after fix) |
-| Typed command runs; first character not dropped | PASS (after fix) |
+| Click a session while Settings is open | PASS |
+| Typed command runs; first character not dropped | PASS |
 | Unicode output rendered | PASS |
-| Ctrl+C interrupts a running command, app launched with Ctrl+C ignored | PASS (after fix) |
-| 3000-line output completes and stays in view | PASS (after fix) |
-| Window resize reaches the shell (114 / 51 columns) | PASS (after fix) |
-| Split view: two independent panes | PASS |
-| Terminal survives opening and closing a panel | PASS (after fix) |
-| MultiExec: banner, mirroring, exclude, Multi-paste, Ctrl+Shift+Insert, Exit (`scripts/ui_multiexec_test.py`, 17 checks, 3 local shells) | PASS |
+| Ctrl+C interrupts a running command, app launched with Ctrl+C ignored | PASS |
+| 3000-line output completes and stays in view | PASS |
+| Window resize reaches the shell (114 / 51 columns) | PASS |
 | Clipboard paste, mouse reporting in xterm.js, SSH tab, Linux | NOT TESTED |
