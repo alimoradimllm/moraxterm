@@ -1,0 +1,114 @@
+name: Build Linux packages
+
+# Builds the .deb and .rpm from a clean checkout on every pull request that touches the app, so a
+# change that breaks Linux (for example a Windows-only resource) is caught before merge.
+# Packages are uploaded as workflow artifacts only. This workflow never creates a release.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'tauri-ui/**'
+      - 'rust-core/**'
+      - '.github/workflows/build-linux.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tauri-ui/**'
+      - 'rust-core/**'
+      - '.github/workflows/build-linux.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-linux-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev \
+            libssl-dev libxdo-dev build-essential pkg-config file rpm xvfb
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tauri-ui/package-lock.json
+
+      - name: Setup Rust (stable; apt's rustc is too old for this lockfile)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            tauri-ui/src-tauri/target
+          key: linux-cargo-${{ hashFiles('tauri-ui/src-tauri/Cargo.lock') }}
+          restore-keys: linux-cargo-
+
+      - name: Install frontend dependencies
+        working-directory: tauri-ui
+        run: npm ci
+
+      - name: Frontend unit tests
+        working-directory: tauri-ui
+        run: npm run test:unit
+
+      - name: Rust tests
+        run: |
+          cargo test --manifest-path rust-core/Cargo.toml
+          cargo test --manifest-path tauri-ui/src-tauri/Cargo.toml
+
+      - name: Build .deb and .rpm
+        working-directory: tauri-ui
+        run: npm run tauri -- build --bundles deb,rpm
+
+      - name: List packages
+        run: |
+          find tauri-ui/src-tauri/target/release/bundle -maxdepth 2 \( -name '*.deb' -o -name '*.rpm' \) -exec ls -l {} \;
+          sha256sum tauri-ui/src-tauri/target/release/bundle/deb/*.deb tauri-ui/src-tauri/target/release/bundle/rpm/*.rpm | tee SHA256SUMS-linux.txt
+
+      - name: Package contents are sane (no Windows runtime shipped)
+        run: |
+          deb=$(ls tauri-ui/src-tauri/target/release/bundle/deb/*.deb)
+          dpkg-deb -c "$deb" | tee deb-contents.txt
+          grep -q 'usr/bin/' deb-contents.txt
+          if grep -q 'EmbeddedUnix' deb-contents.txt; then echo 'Windows-only runtime archive leaked into the .deb'; exit 1; fi
+
+      - name: Install the .deb in a clean container and start it
+        run: |
+          deb=$(ls tauri-ui/src-tauri/target/release/bundle/deb/*.deb)
+          cp "$deb" /tmp/moraxterm.deb
+          docker run --rm -v /tmp/moraxterm.deb:/tmp/moraxterm.deb:ro ubuntu:24.04 bash -c '
+            set -e
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -qq
+            apt-get install -y -qq /tmp/moraxterm.deb xvfb >/dev/null
+            bin=$(dpkg -L moraxterm | grep -E "^/usr/bin/" | head -1)
+            echo "binary: $bin"
+            ldd "$bin" | grep "not found" && { echo "missing shared libraries"; exit 1; } || echo "all shared libraries resolve"
+            # Start under a virtual display; it must stay up for 8 seconds without crashing.
+            xvfb-run -a timeout 8 "$bin" || code=$?
+            [ "${code:-0}" -eq 124 ] && echo "started and stayed running until the timeout" || { echo "exited early with code ${code:-0}"; exit 1; }
+          '
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: moraxterm-linux-packages
+          path: |
+            tauri-ui/src-tauri/target/release/bundle/deb/*.deb
+            tauri-ui/src-tauri/target/release/bundle/rpm/*.rpm
+            SHA256SUMS-linux.txt
