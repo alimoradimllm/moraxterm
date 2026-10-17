@@ -1,0 +1,7 @@
+# Rewrite the README around what is verified, and correct its Linux and license claims
+
+The README is restructured in the style of other terminal-client READMEs: a short summary, a feature list, download, build, tests, architecture, security, and contributing. The generated Recent changes block and the Persian section are kept. Three claims were wrong and are fixed: it said Linux .deb and .rpm packages exist (they were only buildable on a machine that already had a git-ignored Windows archive; they are now built in CI but not published), it said the license is kept in GitHub metadata (the repository has no LICENSE file and GitHub reports none), and its install section pointed at old v0.1.8 file names. A new status table lists each area as run in the built app, tested at tool level only, or not run. The hand-drawn SVG mock-up is not shown because it is not a real screenshot.
+
+Verified: every file and workflow the README links to exists in the repository. The generated Recent changes block is current (docs_sync.py generate --verify). The Windows asset names and the signed SHA256SUMS files match what gh release view v0.1.24 lists. The Linux download path and package name match the passing build-linux.yml run.
+
+Open: no license is chosen; the owner must add a LICENSE file (the README says so plainly). There is no real screenshot yet; one needs a clean profile so it shows no personal paths or saved hosts. The Linux packages are not published to a release. The Persian section is shorter than the English one.
