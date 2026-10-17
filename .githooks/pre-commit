@@ -8,9 +8,8 @@ ROOT=$(git rev-parse --show-toplevel)
   echo "docs-sync: commit refused. Add a change file with: python scripts/docs_sync.py new <slug>   (bypass: git commit --no-verify; CI will still flag it)" >&2
   exit 1
 }
-CHANGED=$("$PY" "$ROOT/scripts/docs_sync.py" generate) || exit 1
-if [ -n "$CHANGED" ]; then
-  # shellcheck disable=SC2086
-  git add $CHANGED
-fi
+CHANGED=$("$PY" "$ROOT/scripts/docs_sync.py" generate | tr -d '\r') || exit 1
+for file in $CHANGED; do
+  git add -- "$file" || { echo "docs-sync: could not stage regenerated $file" >&2; exit 1; }
+done
 exit 0

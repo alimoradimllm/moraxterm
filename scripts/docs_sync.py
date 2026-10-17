@@ -166,7 +166,10 @@ def main(argv=None):
         if args.verify and changed:
             print("stale generated blocks: " + ", ".join(changed) + ". Run: python scripts/docs_sync.py generate", file=sys.stderr)
             return 1
-        print("\n".join(changed))
+        # Bare LF on every platform: a hook captures this with $(...) and a stray CR would make `git add` fail.
+        # .buffer: text mode would turn "\n" into "\r\n" on Windows
+        sys.stdout.buffer.write("".join(f"{name}\n" for name in changed).encode("utf-8"))
+        sys.stdout.flush()
         return 0
 
     try:

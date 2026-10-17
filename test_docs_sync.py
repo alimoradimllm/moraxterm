@@ -9,6 +9,7 @@ import unittest.mock
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parent / "scripts"
+HOOKS = Path(__file__).resolve().parent / ".githooks"
 sys.path.insert(0, str(SCRIPTS))
 import docs_sync  # noqa: E402
 import sync  # noqa: E402
@@ -211,6 +212,45 @@ class Repo(unittest.TestCase):
         self.assertEqual(sync.sync(self.b), 0)
         self.assertEqual(run(self.remote, "rev-parse", "other"), run(self.b, "rev-parse", "HEAD"))
         self.assertEqual(run(self.remote, "rev-parse", "feature"), run(self.a, "rev-parse", "HEAD"))
+
+    def test_generate_output_has_no_carriage_returns(self):
+        # Regression: the pre-commit hook captured "\r\n" on Windows, so `git add` silently failed
+        # and a stale index was committed.
+        self.add_fragment(self.a, "2026-10-17-1000-a.md", "A")
+        out = subprocess.run([sys.executable, str(self.a / "scripts" / "docs_sync.py"), "generate"], cwd=self.a, capture_output=True)
+        self.assertEqual(out.returncode, 0)
+        self.assertNotIn(b"\r", out.stdout)
+        self.assertEqual(out.stdout.split(), [b"README.md", b"AGENTS.md"])
+        again = subprocess.run([sys.executable, str(self.a / "scripts" / "docs_sync.py"), "generate"], cwd=self.a, capture_output=True)
+        self.assertEqual(again.stdout, b"")
+
+    def test_pre_commit_hook_stages_the_regenerated_indexes(self):
+        hooks = self.a / ".githooks"
+        hooks.mkdir()
+        for name in ("pre-commit", "find-python.sh"):
+            shutil.copy(HOOKS / name, hooks / name)
+        run(self.a, "config", "core.hooksPath", ".githooks")
+        self.add_fragment(self.a, "2026-10-17-1000-a.md", "A change")
+        (self.a / "code.txt").write_text("v2\n", encoding="utf-8")
+        run(self.a, "add", "-A")  # index still holds the old "No change files yet." block
+        env = dict(os.environ, MORAXTERM_NO_AUTOPUSH="1")
+        result = subprocess.run(["git", "commit", "-m", "hooked"], cwd=self.a, capture_output=True, text=True, env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(run(self.a, "status", "--porcelain"), "")  # nothing left unstaged
+        self.assertIn("A change", run(self.a, "show", "HEAD:README.md"))
+        self.assertIn("A change", run(self.a, "show", "HEAD:AGENTS.md"))
+
+    def test_pre_commit_hook_refuses_code_without_a_change_file(self):
+        hooks = self.a / ".githooks"
+        hooks.mkdir()
+        for name in ("pre-commit", "find-python.sh"):
+            shutil.copy(HOOKS / name, hooks / name)
+        run(self.a, "config", "core.hooksPath", ".githooks")
+        (self.a / "code.txt").write_text("v2\n", encoding="utf-8")
+        run(self.a, "add", "code.txt")
+        result = subprocess.run(["git", "commit", "-m", "no fragment"], cwd=self.a, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("no new docs/changes/ file", result.stderr)
 
 
 if __name__ == "__main__":
