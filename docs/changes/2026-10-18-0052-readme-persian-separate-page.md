@@ -1,0 +1,7 @@
+# Move the Persian README into its own page and link the two languages
+
+README.md held the English text and a Persian section on the same page. The Persian text now lives in README.fa_IR.md, a full translation with the same sections and the same verified-versus-untested status table, and both pages start with a one-line switcher: English | فارسی. README.md contains no Persian except the switcher label. The Persian page links to the shared files that stay English only (REMAINING_WORK, the roadmap, THIRD_PARTY_NOTICES, CONTRIBUTING, AGENTS) and says so, and it links to the generated Recent changes list in the English page instead of duplicating it, so the generator needs no change.
+
+Verified: a script checked that every local link and heading anchor in both files resolves (35 links in README.md, 25 in README.fa_IR.md, none missing); README.md has Persian characters on one line only (the switcher); the only Persian-page line with no Persian outside code, tables and headings is a file name. docs_sync.py generate --verify reports the generated block current.
+
+Open: the Persian page is a translation of the English one and will drift unless it is updated with it; only the English page has the generated Recent changes list. The linked docs (REMAINING_WORK, roadmap, notices, AGENTS) have no Persian version. The Persian text was written by an AI and has not been reviewed by a native speaker.
