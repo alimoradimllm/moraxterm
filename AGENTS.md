@@ -188,7 +188,6 @@ Keep entries factual and concise. Do not record secrets or temporary personal pa
 - 2026-10-17 — [Enable GitHub branch protection on main](docs/changes/2026-10-17-2237-branch-protection-main.md)
 - 2026-10-17 — [Improve UI panel action and output layout](docs/changes/2026-10-17-2217-ui-panel-action-layout.md)
 - 2026-10-17 — [Automate tagged Windows release assets](docs/changes/2026-10-17-2216-automated-release-assets.md)
-- 2026-10-17 — [Improve UI panel action and output layout](docs/changes/2026-10-17-2217-ui-panel-action-layout.md)
 - 2026-10-17 — [Fix pre-commit hook leaving stale README/AGENTS indexes unstaged on Windows](docs/changes/2026-10-17-2213-hook-staging-and-lf-output.md)
 - 2026-10-17 — [Parallel-safe change log, generated README/AGENTS index, and automatic push](docs/changes/2026-10-17-2204-parallel-safe-docs-sync.md)
 - 2026-10-17 — [Rebuild MultiExec to match the MobaXterm design rules (28a8da5)](docs/changes/2026-10-17-1800-multiexec-rebuild.md)
