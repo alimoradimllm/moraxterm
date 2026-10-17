@@ -187,13 +187,28 @@ SQLite persistence, PTY output, resize, Ctrl+C, and Ctrl+D/EOF. Windows native
 interactive WebView automation still needs stronger coverage for full-screen
 applications and keyboard control behavior.
 
-## Project status
+## Development status and synchronization
 
-Moraxterm is usable for development work, but practical legacy terminal suite parity is not
-finished. The current gaps include SSH host-key and credential workflows,
-complete SFTP file management, richer session hierarchy, native Windows ConPTY
-coverage, RDP/VNC embedding, serial configuration, X-server lifecycle, and
-release-quality automation.
+The repository is maintained through small, verifiable increments. Every completed
+code or documentation change must update this README, the relevant roadmap, and
+`AGENTS.md` when project state or workflow changes. Each agent works in an
+isolated branch/worktree, commits and pushes its branch immediately, and changes
+reach `main` only after review and verification. Parallel agents must never push
+directly to `main`.
+
+Latest verified areas include:
+
+- Working React panels for Settings, Macros, MultiExec, SFTP, Tunneling, and
+  network Tools.
+- SSH ProxyJump/gateway metadata and structured host-key policy support.
+- Explicit known-host status, fingerprint scan, approval, and removal controls.
+- Disposable WSL SSH trust/gateway harness with strict unknown-host rejection,
+  approved-key connection, changed-key rejection, and gateway forwarding tests.
+
+The remaining runtime limitation is exact `ssh -J` verification in the current
+WSL image: its system SSH wrapper intercepts the child proxy path. Equivalent
+OpenSSH forwarding through an explicit `ProxyCommand` passes.
+
 
 - Detailed remaining work: [`docs/REMAINING_WORK.md`](docs/REMAINING_WORK.md)
 - Compatibility roadmap: [`docs/MORAXTERM_COMPATIBILITY_ROADMAP.md`](docs/MORAXTERM_COMPATIBILITY_ROADMAP.md)

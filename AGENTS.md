@@ -22,10 +22,10 @@ This file is the handoff document for any AI agent, coding model, or human contr
 5. Run the required checks listed below.
 6. Runtime-test desktop behavior when the change affects the UI, terminal, process lifecycle, persistence, or packaging.
 7. Update this file when the change affects project state, workflows, verification status, known limitations, or design decisions.
-8. Update the relevant roadmap/remaining-work documentation when feature status changes.
-9. Commit the complete change with a specific message.
-10. Push the commit to `origin/main` in the same work cycle.
-11. Verify that the working tree is clean and synchronized before reporting completion.
+8. Update `README.md` for every completed code or documentation change: keep the current status, latest verified capability, and remaining limitation accurate. Update the relevant roadmap/remaining-work documentation when feature status changes.
+9. Commit the complete atomic change with a specific message.
+10. Push the commit to the agent branch immediately. Merge to `main` only after review and verification; never have parallel agents push directly to `main`.
+11. Verify that the working tree is clean and the pushed branch is synchronized before reporting completion.
 
 **Every code or documentation change must be committed and pushed to GitHub unless the user explicitly asks for a local-only change.** Never say a change is complete when it exists only in the working tree.
 
