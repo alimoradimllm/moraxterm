@@ -76,4 +76,6 @@ Run with `scripts/ui_smoke_test.py` against the exe built from `main` plus the f
 | Split view: two independent panes | PASS |
 | Terminal survives opening and closing a panel | PASS (after fix) |
 | MultiExec: banner, mirroring, exclude, Multi-paste, Ctrl+Shift+Insert, Exit (`scripts/ui_multiexec_test.py`, 17 checks, 3 local shells) | PASS |
-| Clipboard paste, mouse reporting in xterm.js, SSH tab, Linux | NOT TESTED |
+| Clipboard paste, mouse reporting in xterm.js, SSH tab | NOT TESTED |
+| Linux `.deb` / `.rpm` (CI, `build-linux.yml`, Ubuntu 24.04): clean-checkout build, 4.46 MB `.deb`, no Windows runtime archive inside, installs in a clean `ubuntu:24.04` container, shared libraries resolve, stays running 8 s under `xvfb` | PASS (headless) |
+| Linux app on a real desktop (window, input, terminal) | NOT TESTED |
