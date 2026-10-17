@@ -7,7 +7,7 @@ on:
       - 'v*'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   windows:
@@ -46,6 +46,22 @@ jobs:
       - name: Build Windows installer
         working-directory: tauri-ui
         run: npm run tauri -- build
+
+      - name: Publish tagged release assets
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --repo $env:GITHUB_REPOSITORY --title "Moraxterm $tag" --generate-notes
+          }
+          gh release upload $tag --repo $env:GITHUB_REPOSITORY --clobber `
+            tauri-ui/src-tauri/target/release/bundle/msi/*.msi `
+            tauri-ui/src-tauri/target/release/bundle/nsis/*-setup.exe `
+            tauri-ui/src-tauri/resources/Moraxterm_EmbeddedUnix_x64_0.1.24.tar.xz
 
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v4
