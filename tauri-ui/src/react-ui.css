@@ -93,6 +93,12 @@ button { cursor: pointer; }
 .react-editor-grid { display: grid; grid-template-columns: 1fr 150px; gap: 14px; }
 .react-editor-check { flex-direction: row !important; align-items: center; }
 .react-editor-note { margin-bottom: 20px; padding: 12px 14px; color: #9fb4c0; background: #18252d; border-left: 3px solid #35a7e8; font-size: 12px; line-height: 1.5; }
+.react-editor-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 18px; }
+.react-editor-actions button { padding: 7px 11px; color: #d4e1e8; background: #27333c; border: 1px solid #4a5d69; border-radius: 4px; font-size: 11px; }
+.react-editor-actions button:hover:not(:disabled) { color: #fff; background: #2d5267; border-color: #65c8f5; }
+.react-editor-actions button.primary { color: #fff; background: #247fb3; border-color: #55b9eb; }
+.react-editor-actions button:disabled { cursor: not-allowed; opacity: .45; }
+.react-tool-output { min-height: 170px; max-height: 330px; margin: 14px 0 0; padding: 12px; overflow: auto; color: #cfe5ef; background: #080b0e; border: 1px solid #354954; border-radius: 4px; font: 12px/1.45 Consolas, 'Cascadia Mono', monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .react-editor-footer { display: flex; justify-content: flex-end; gap: 9px; margin-top: auto; padding: 14px 28px; background: #171e24; border-top: 1px solid #35444f; }
 .react-editor-footer button { min-width: 100px; padding: 8px 14px; color: #d4e1e8; background: #27333c; border: 1px solid #4a5d69; border-radius: 4px; }
 .react-editor-footer button.primary { color: #fff; background: #247fb3; border-color: #55b9eb; }
