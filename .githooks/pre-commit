@@ -1,0 +1,16 @@
+#!/bin/sh
+# Blocks commits that change code without a docs/changes/ file, and keeps the generated
+# README.md / AGENTS.md change indexes current. Installed by scripts/install_hooks.sh.
+. "$(git rev-parse --show-toplevel)/.githooks/find-python.sh"
+PY=$(find_python) || { echo "docs-sync: no working python found, skipping the change-file check (CI still enforces it)" >&2; exit 0; }
+ROOT=$(git rev-parse --show-toplevel)
+"$PY" "$ROOT/scripts/docs_sync.py" check --staged || {
+  echo "docs-sync: commit refused. Add a change file with: python scripts/docs_sync.py new <slug>   (bypass: git commit --no-verify; CI will still flag it)" >&2
+  exit 1
+}
+CHANGED=$("$PY" "$ROOT/scripts/docs_sync.py" generate) || exit 1
+if [ -n "$CHANGED" ]; then
+  # shellcheck disable=SC2086
+  git add $CHANGED
+fi
+exit 0

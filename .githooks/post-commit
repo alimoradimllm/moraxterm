@@ -1,0 +1,15 @@
+#!/bin/sh
+# Pushes the current branch to origin right after every commit (rebasing first if someone else
+# pushed). Never forces and never pushes main. A failure only warns: the commit is already safe locally.
+# Opt out for one commit:  MORAXTERM_NO_AUTOPUSH=1 git commit ...
+[ -n "$MORAXTERM_NO_AUTOPUSH" ] && exit 0
+[ -n "$MORAXTERM_SYNC_ACTIVE" ] && exit 0
+. "$(git rev-parse --show-toplevel)/.githooks/find-python.sh"
+PY=$(find_python) || { echo "docs-sync: no working python found, not auto-pushing" >&2; exit 0; }
+ROOT=$(git rev-parse --show-toplevel)
+MORAXTERM_SYNC_ACTIVE=1 "$PY" "$ROOT/scripts/sync.py"
+case $? in
+  0|3) ;;  # pushed, or deliberately skipped on main (sync.py already explained)
+  *) echo "docs-sync: auto-push did not complete; run: python scripts/sync.py" >&2 ;;
+esac
+exit 0
