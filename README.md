@@ -190,6 +190,7 @@ applications and keyboard control behavior.
 ## Recent changes
 
 <!-- RECENT-CHANGES:START -->
+- 2026-10-17 — [Make a clean Linux checkout buildable and add a Linux package CI job](docs/changes/2026-10-17-2327-linux-clean-build-and-ci.md)
 - 2026-10-17 — [Enable GitHub branch protection on main](docs/changes/2026-10-17-2237-branch-protection-main.md)
 - 2026-10-17 — [Improve UI panel action and output layout](docs/changes/2026-10-17-2217-ui-panel-action-layout.md)
 - 2026-10-17 — [Automate tagged Windows release assets](docs/changes/2026-10-17-2216-automated-release-assets.md)
