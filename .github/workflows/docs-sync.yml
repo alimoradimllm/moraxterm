@@ -1,0 +1,57 @@
+name: docs-sync
+
+# Backstop for contributors who skip the local hooks (scripts/install_hooks.sh):
+#  - pull requests: every code change needs a docs/changes/ file and fresh generated indexes
+#  - pushes to main: regenerate the README.md / AGENTS.md change indexes and commit them
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: docs-sync-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Change file present and valid
+        run: python3 scripts/docs_sync.py check --range "origin/${{ github.base_ref }}...HEAD"
+      - name: Generated indexes are current
+        run: python3 scripts/docs_sync.py generate --verify
+
+  regenerate:
+    if: github.event_name == 'push' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Flag direct pushes that skipped the change file (warning only)
+        continue-on-error: true
+        run: |
+          if [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            python3 scripts/docs_sync.py check --range "${{ github.event.before }}..${{ github.sha }}"
+          fi
+      - name: Regenerate README.md and AGENTS.md indexes
+        run: python3 scripts/docs_sync.py generate
+      - name: Commit if the indexes changed
+        run: |
+          if git diff --quiet; then
+            echo "indexes already current"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add README.md AGENTS.md
+            git commit -m "docs: refresh generated change index [skip ci]"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
