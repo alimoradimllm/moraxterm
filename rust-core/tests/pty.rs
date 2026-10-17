@@ -1,5 +1,31 @@
 use moraxterm_core::TerminalProcess;
 
+/// Runs `work` on its own thread and fails the test if it takes longer than `seconds`,
+/// so a hung PTY read shows up as a failure with a message, not as a stalled CI job.
+#[allow(dead_code)]
+fn run_with_timeout<T: Send + 'static>(
+    seconds: u64,
+    work: impl FnOnce() -> T + Send + 'static,
+) -> T {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = sender.send(work());
+    });
+    receiver
+        .recv_timeout(std::time::Duration::from_secs(seconds))
+        .unwrap_or_else(|_| panic!("PTY test did not finish within {seconds}s"))
+}
+
+/// Reads from the PTY into `seen` until `needle` appears in everything read so far.
+#[allow(dead_code)]
+fn read_until(process: &mut TerminalProcess, seen: &mut Vec<u8>, needle: &str) {
+    while !String::from_utf8_lossy(seen).contains(needle) {
+        let chunk = process.read_chunk().unwrap();
+        assert!(!chunk.is_empty(), "PTY closed before {needle:?} appeared");
+        seen.extend(chunk);
+    }
+}
+
 #[test]
 #[cfg(unix)]
 fn pty_rejects_zero_dimensions_and_accepts_resize() {
@@ -11,11 +37,32 @@ fn pty_rejects_zero_dimensions_and_accepts_resize() {
 #[test]
 #[cfg(unix)]
 fn pty_processes_ctrl_c_as_interrupt() {
-    let mut process =
-        TerminalProcess::spawn("/bin/sh", &["-i", "-c", "while :; do :; done"]).unwrap();
-    process.write(&[3]).unwrap();
-    let output = process.read_to_end().unwrap();
-    assert!(String::from_utf8_lossy(&output).contains("^C"));
+    // An interactive shell survives Ctrl+C: it stops the running command and returns to its prompt.
+    // So the proof of an interrupt is that a command typed AFTER Ctrl+C still runs, which can only
+    // happen if the endless loop was stopped. (The old version waited for the shell to exit, which
+    // only "worked" when Ctrl+C arrived so early that the shell had not installed its handler yet,
+    // and hung in 14 of 60 runs on a busy machine.) Markers are computed (`$((6*7))`) so the echoed
+    // command line cannot be mistaken for the output.
+    let output = run_with_timeout(30, || {
+        let mut process = TerminalProcess::spawn("/bin/sh", &["-i"]).unwrap();
+        process
+            .write(b"echo READY_$((6*7)); while :; do :; done\n")
+            .unwrap();
+        let mut seen = Vec::new();
+        read_until(&mut process, &mut seen, "READY_42");
+        process.write(&[3]).unwrap();
+        process.write(b"echo AFTER_$((6*7))\n").unwrap();
+        read_until(&mut process, &mut seen, "AFTER_42");
+        process.write(b"exit\n").unwrap();
+        seen.extend(process.read_to_end().unwrap());
+        seen
+    });
+    let text = String::from_utf8_lossy(&output);
+    assert!(text.contains("^C"), "Ctrl+C was not echoed: {text:?}");
+    assert!(
+        text.contains("AFTER_42"),
+        "shell did not recover after Ctrl+C: {text:?}"
+    );
 }
 
 #[test]
