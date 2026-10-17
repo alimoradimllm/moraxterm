@@ -248,6 +248,24 @@ Method: `scripts/ui_launch_test_instance.py` starts the built exe with an isolat
 - Verified: `DISPOSABLE_SFTP_RUNTIME_TEST=PASS` in Debian WSL. Covers OpenSSH clients only, not Moraxterm code.
 
 
+## Parallel sessions: who owns what
+
+Three Hermes sessions can work at once. Sessions cannot see each other's chat; they coordinate only through git, this file, and `docs/changes/`. Each session uses its **own worktree and branch** (never the shared `moraxterm/` folder, never `main`).
+
+| Session | Worktree (sibling of `moraxterm/`) | Branch | Area | Typical files |
+|---|---|---|---|---|
+| UI | `moraxterm-wt-UI` | `agent/ui` | MultiExec follow-ups, detached windows, session editor, themes, React UI | `tauri-ui/src/*.tsx`, `*.css`, `multiexec.js` |
+| SSH/SFTP | `moraxterm-wt-ssh` | `agent/ssh` | SSH tabs, host-key flow, SFTP UI, upload progress, tunnels | `tauri-ui/src/SftpPane.tsx`, `SessionEditor.tsx` (SSH parts), `src-tauri` ssh/sftp commands, `scripts/disposable_*` |
+| Terminal/release | `moraxterm-wt-terminal` | `agent/terminal` | PTY and terminal matrix, Linux, packaging, release gate | `rust-core/`, `src-tauri` terminal commands, `scripts/ui_*`, packaging, workflows |
+
+Rules:
+- Stay in your area. If you must touch another area's file, keep the edit minimal and say so in your change file.
+- `tauri-ui/src/App.tsx` and `tauri-ui/src-tauri/src/main.rs` are shared hot files. Change them in small commits and run `python scripts/sync.py --pull` immediately before and after.
+- Start of work: `python scripts/sync.py --pull`. Each commit needs a `docs/changes/` file; the hooks push your branch.
+- Open a pull request into `main` when a change is verified. One integrator (the user) merges. Never push or force-push to `main`.
+- Only one session at a time may run the desktop UI tests (`scripts/ui_*`): they use WebView2 debugging port 9333 and one isolated profile directory. Check `tasklist | grep moraxterm` first.
+- Build output (`tauri-ui/src-tauri/target`) is per worktree; the first build in a new worktree is a full build.
+
 ## Working with other contributors and agents
 
 Several people or agents may push at the same time. The workflow below keeps every branch on GitHub current after each commit, without conflicts or lost work, and keeps `main` reviewed.
