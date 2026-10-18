@@ -211,7 +211,12 @@ export default function App() {
     const plan = planSave(sessions, editorSession, draft);
     if (!plan.ok) { setNotice(plan.error); return; }
     const message = plan.renamed ? `Renamed ${plan.renamed.from} to ${plan.renamed.to}.` : `Saved ${plan.changed?.[0]?.name ?? 'session'}.`;
-    if (await applyChange(plan, message)) setEditorSession(undefined);
+    if (await applyChange(plan, message)) {
+      setEditorSession(undefined);
+      // Only the label changes for a terminal that is already running; its other settings apply the next time it starts.
+      const renamed = plan.renamed;
+      if (renamed) setTabs(current => current.map(tab => tab.session.name === renamed.from ? { ...tab, session: { ...tab.session, name: renamed.to } } : tab));
+    }
   };
   const saveFolders = (next: string[]) => { setFolders(next); localStorage.setItem('moraxterm-session-folders', JSON.stringify(next)); };
   // Every sidebar action (folders, drag and drop, save, rename, duplicate, favourite, delete) arrives here as a computed change.

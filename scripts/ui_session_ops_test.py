@@ -4,18 +4,18 @@ and persistence after a full restart. Run: python scripts/ui_session_ops_test.py
 import json, os, shutil, subprocess, sys, tempfile, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cdp_driver as d
+import ui_guard
 
 EXE = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else "tauri-ui/src-tauri/target/release/moraxterm-linux-ui.exe")
-PROFILE = os.path.join(tempfile.gettempdir(), "moraxterm-ui-test")
+PROFILE = ui_guard.PROFILE
 SHOTS = os.environ.get("SHOTS", os.path.join(tempfile.gettempdir(), "mx-shots")); os.makedirs(SHOTS, exist_ok=True)
 res = {}
 
 def stop():
-    subprocess.run(["powershell.exe", "-NoProfile", "-Command", "Get-Process moraxterm-linux-ui -ErrorAction SilentlyContinue | Stop-Process -Force"], capture_output=True); time.sleep(1.5)
+    ui_guard.stop_exe(EXE)
 
 def launch():
-    env = dict(os.environ, APPDATA=PROFILE + "\\appdata", LOCALAPPDATA=PROFILE + "\\local", MORAXTERM_DATA_DIR=PROFILE + "\\data",
-               WEBVIEW2_USER_DATA_FOLDER=PROFILE + "\\webview", WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS="--remote-debugging-port=9333")
+    env = ui_guard.app_env()
     p = subprocess.Popen([EXE], env=env, creationflags=0x00000008 | 0x00000200)
     for _ in range(60):
         try: return p, d.App()
@@ -59,6 +59,7 @@ def type_into_name(a, text):
 def save_editor(a): return click(a, ".react-editor-footer button", "Save session")
 def shot(a, name): a.shot(os.path.join(SHOTS, f"ops-{name}.png"))
 
+ui_guard.require_free_port()
 stop(); shutil.rmtree(PROFILE, ignore_errors=True)
 p, a = launch(); time.sleep(5)
 try:
@@ -93,6 +94,21 @@ try:
     res["rename_kept_folder"] = r.get("db-prod", {}).get("folder") == "Work"
     res["rename_message"] = notice(a)
     res["editor_closed_after_save"] = not a.eval("!!document.querySelector('.react-editor-form')")
+
+    # a running tab follows a rename, and a delete leaves it open
+    seed(a, [{"name": "shellx", "session_type": "Shell", "host": "", "username": "", "port": 0, "shell": "powershell", "keepalive_seconds": 30, "unix_shell": "fish"}])
+    a.eval("location.reload()"); time.sleep(3)
+    click(a, ".react-session", "shellx"); time.sleep(4)
+    res["tab_opened"] = a.eval("document.querySelectorAll('.react-tabs button').length") == 1
+    a.eval("[...document.querySelectorAll('button')].find(b=>b.title==='Home')?.click()"); time.sleep(0.5)
+    menu_click(a, "shellx", "Edit"); time.sleep(0.6)
+    type_into_name(a, "shell-renamed"); save_editor(a); time.sleep(0.9)
+    tab_text = a.eval("document.querySelector('.react-tabs button')?.innerText") or ""
+    res["open_tab_title_follows_rename"] = "shell-renamed" in tab_text and "shellx" not in tab_text
+    menu_click(a, "shell-renamed", "Delete…"); click(a, ".react-menu button", "Delete session"); time.sleep(0.8)
+    res["deleted_session_gone_from_tree"] = not any("shell-renamed" in x for x in tree(a))
+    res["delete_leaves_running_tab_open"] = a.eval("document.querySelectorAll('.react-tabs button').length") == 1
+    a.eval("document.querySelector('.react-tabs button b')?.click()"); time.sleep(0.6)
 
     # name clash is refused
     menu_click(a, "db-prod", "Edit"); time.sleep(0.6)

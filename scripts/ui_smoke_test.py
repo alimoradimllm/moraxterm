@@ -2,7 +2,7 @@ import os, sys, time, json, re
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from cdp_driver import App
 a = App()
-import tempfile; T = os.path.join(tempfile.gettempdir(), "moraxterm-ui-test") + os.sep
+import ui_guard; T = ui_guard.PROFILE + os.sep
 res = {}
 
 def term_text():

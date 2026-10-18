@@ -7,11 +7,11 @@ import ctypes, json, os, shutil, subprocess, sys, tempfile, time
 ctypes.windll.kernel32.SetConsoleCtrlHandler(None, True)   # deliberately launch with Ctrl+C ignored
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-t = os.path.join(tempfile.gettempdir(), "moraxterm-ui-test")
-assert os.path.basename(t) == "moraxterm-ui-test" and t.lower().startswith(tempfile.gettempdir().lower())
+import ui_guard
+ui_guard.require_free_port()
+t = ui_guard.PROFILE
 shutil.rmtree(t, ignore_errors=True)
-env = dict(os.environ, APPDATA=t + "\\appdata", LOCALAPPDATA=t + "\\local", MORAXTERM_DATA_DIR=t + "\\data", WEBVIEW2_USER_DATA_FOLDER=t + "\\webview",
-           WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS="--remote-debugging-port=9333")
+env = ui_guard.app_env()
 p = subprocess.Popen([os.path.abspath(sys.argv[1])], env=env, creationflags=0x00000008 | 0x00000200)
 print("pid", p.pid, "(launched with Ctrl+C ignored)")
 

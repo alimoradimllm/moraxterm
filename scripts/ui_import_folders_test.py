@@ -3,10 +3,12 @@
 import json, os, subprocess, sys, tempfile, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cdp_driver as d
+import ui_guard
 
 EXE = os.path.abspath("tauri-ui/src-tauri/target/release/moraxterm-linux-ui.exe")
+ui_guard.require_free_port()
 launcher = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui_launch_test_instance.py")
-subprocess.run(["powershell.exe", "-NoProfile", "-Command", "Get-Process moraxterm-linux-ui -ErrorAction SilentlyContinue | Stop-Process -Force"], capture_output=True)
+ui_guard.stop_exe(EXE)
 time.sleep(1.5)
 subprocess.run([sys.executable, launcher, EXE], capture_output=True)
 
@@ -20,7 +22,7 @@ text = "\n".join([
     "[Bookmarks_3]", "SubRep=Labs", "ImgNum=41",
     "vnc-a=#128#5%vnc-a.invalid%5900%-1%0",
 ])
-path = os.path.join(tempfile.gettempdir(), "moraxterm-ui-test", "synthetic.mxtsessions")
+path = os.path.join(ui_guard.PROFILE, "synthetic.mxtsessions")
 open(path, "w", encoding="utf-8").write(text)
 
 a = d.App()
@@ -42,4 +44,4 @@ try:
     print("folder == group in the database for imported sessions:", ok_store)
     sys.exit(0 if (ok_tree and ok_store) else 1)
 finally:
-    subprocess.run(["powershell.exe", "-NoProfile", "-Command", "Get-Process moraxterm-linux-ui -ErrorAction SilentlyContinue | Stop-Process -Force"], capture_output=True)
+    ui_guard.stop_exe(EXE)
