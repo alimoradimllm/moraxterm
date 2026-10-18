@@ -19,7 +19,7 @@
 :root[data-app-theme='midnight'] { --bg: #070a12; --panel: #0d1220; --panel-2: #131a2c; --raised: #1b2438; --line: #212c45; --line-2: #31405f; --accent: #5aa9ff; --accent-ink: #04122a; --term-bg: #070b14; }
 :root[data-app-theme='light'] {
   --bg: #eef2f6; --panel: #ffffff; --panel-2: #f3f6f9; --raised: #e6ecf2; --line: #d3dce6; --line-2: #b9c6d4;
-  --text: #17222d; --muted: #566677; --faint: #8795a5; --accent: #0b8f78; --accent-ink: #ffffff;
+  --text: #17222d; --muted: #566677; --faint: #8795a5; --accent: #087a66; --accent-ink: #ffffff;
   --ok: #0d7a3f; --warn: #8a6100; --bad: #c4262e; --exec: #c2410c; --term-bg: #fbfcfd; --shadow: 0 10px 30px rgba(30, 50, 70, .16);
   --icon-filter: brightness(.6) saturate(1.45); --tint: 22%; color-scheme: light;
 }
