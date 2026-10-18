@@ -84,4 +84,7 @@ if "${SSH[@]}" -p "$TARGET_PORT" ali@127.0.0.1 true >/dev/null 2>&1; then
   exit 1
 fi
 echo 'changed_host_key=rejected'
+if [ -n "${MORAXTERM_SSH_HOLD_SECONDS:-}" ]; then
+  sleep "$MORAXTERM_SSH_HOLD_SECONDS"
+fi
 echo 'DISPOSABLE_SSH_RUNTIME_TEST=PASS'
