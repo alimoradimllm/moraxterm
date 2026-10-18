@@ -19,17 +19,18 @@ Each crate and package keeps its own license text in its published source. A gen
 The Windows installer includes `Moraxterm_EmbeddedUnix_x64_0.1.24.tar.xz`, an MSYS2 environment that Moraxterm extracts for its local Unix shell. It is a separate program from Moraxterm and keeps its own licenses. Checked by listing the archive on 2026-10-18:
 
 - It contains, among about 33,700 entries: `fish.exe`, `bash.exe`, `ssh.exe`, `curl.exe`, `wget.exe` and `telnet.exe`.
-- Several of these are copyleft programs under the upstream projects' GPL licenses (the Fish shell, GNU Bash, GNU Wget, GNU inetutils, and the `mintty` terminal). The exact license of each should be confirmed from the MSYS2 package metadata before a wide release; the names above are from upstream's published licensing, not from this archive.
-- The archive ships license directories for only 25 packages (brotli, curl, dash, file, gcc-libs, heimdal, libargp, libassuan, libedit, libffi, libksba, libnghttp2, libnghttp3, libngtcp2, libopenssl, libpsl, libsqlite, libssh2, mintty, ncurses, openssh, p11-kit, tzcode, zlib, zstd). **There is no license directory for Fish, Bash, Wget or inetutils.**
+- The archive's own package database lists 101 packages, 64 of them under a GPL, LGPL or MPL licence. Fish is GPL-2.0-only; Bash, GNU Wget, GNU inetutils and mintty are GPL-3.0-or-later. The complete list with versions and licence identifiers, read from the archive, is [`docs/EMBEDDED_UNIX_PACKAGES.md`](docs/EMBEDDED_UNIX_PACKAGES.md), and the full licence texts are in [`LICENSES/`](LICENSES/).
+- The archive ships a licence directory for only 25 packages, and only 6 of the 64 copyleft packages have one. **There is no licence directory for Fish, Bash, Wget or inetutils inside the archive**, which is why the texts are provided separately in `LICENSES/`.
+- Source: every copyleft package in that list links the MSYS2 source archive at the exact version in the archive (`https://repo.msys2.org/msys/sources/<package>-<version>.src.tar.zst`). A HEAD request to each of the 85 distinct source archives (all 101 packages, not only the copyleft ones) answered HTTP 200 on 2026-10-18; this proves the files exist on that server, not that they match the binaries byte for byte.
 
 Moraxterm only launches these programs as separate processes; it does not link against them, so they do not change the license of Moraxterm's own code. Redistributing GPL programs does require their license text and an offer of, or pointer to, their source code.
 
 ### Open (needs action before a wide release)
 
-1. Add the license text for every program in the archive that is missing one, including Fish, Bash, Wget and inetutils.
-2. Add a source pointer for the GPL programs (the MSYS2 package sources, at the exact package versions in the archive).
+1. Ship `LICENSES/` and `docs/EMBEDDED_UNIX_PACKAGES.md` inside the installer itself, so the texts and source pointers travel with the binaries. They are in the repository now but not yet verified to be in the installer.
+2. The source links point to the MSYS2 project's server, which Moraxterm does not control. A written offer to supply the source, or a copy of the source archives with each release, is the safer reading of the GPL; decide which.
 3. Generate a full dependency license report for each release and publish it with the installer.
-4. Have someone with legal experience review the redistribution.
+4. Have someone with legal experience review the redistribution. This section records facts from the archive; it is not legal advice.
 
 ## Reporting a problem
 
