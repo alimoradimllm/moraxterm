@@ -23,7 +23,8 @@ EXEMPT_PREFIXES = ("docs/",)
 EXEMPT_SUFFIXES = (".md",)
 EXEMPT_NAMES = {".gitignore", ".gitattributes"}
 # file -> (marker name, number of entries shown)
-TARGETS = {"README.md": ("RECENT-CHANGES", 10), "AGENTS.md": ("CHANGE-INDEX", 15)}
+# README shows the 10 newest changes; AGENTS.md lists every change (None = no limit), as the project owner asked.
+TARGETS = {"README.md": ("RECENT-CHANGES", 10), "AGENTS.md": ("CHANGE-INDEX", None)}
 MIN_FRAGMENT_CHARS = 120
 TEMPLATE = """# <one-line title: what changed>
 
