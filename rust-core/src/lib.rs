@@ -522,11 +522,21 @@ pub fn import_ini(text: &str) -> Result<Vec<Session>, ImportError> {
 pub fn import_bookmarks(text: &str) -> Result<Vec<Session>, ImportError> {
     let mut result = Vec::new();
     let mut in_bookmarks = false;
+    let mut group = String::new();
     for raw_line in text.lines() {
         let line = raw_line.trim();
         if line.starts_with('[') && line.ends_with(']') {
-            in_bookmarks = line[1..line.len() - 1].eq_ignore_ascii_case("Bookmarks")
-                || line[1..line.len() - 1].starts_with("Bookmarks_");
+            let section = &line[1..line.len() - 1];
+            in_bookmarks =
+                section.eq_ignore_ascii_case("Bookmarks") || section.starts_with("Bookmarks_");
+            group.clear();
+            continue;
+        }
+        if in_bookmarks && line.to_ascii_lowercase().starts_with("subrep=") {
+            group = line
+                .split_once('=')
+                .map(|(_, value)| value.trim().replace('\\', "/"))
+                .unwrap_or_default();
             continue;
         }
         if !in_bookmarks {
@@ -565,7 +575,7 @@ pub fn import_bookmarks(text: &str) -> Result<Vec<Session>, ImportError> {
                 port: 0,
                 environment: std::collections::HashMap::new(),
                 startup_command: String::new(),
-                group: String::new(),
+                group: group.clone(),
                 favorite: false,
                 ..Default::default()
             });
@@ -586,7 +596,7 @@ pub fn import_bookmarks(text: &str) -> Result<Vec<Session>, ImportError> {
             port,
             environment: std::collections::HashMap::new(),
             startup_command: String::new(),
-            group: String::new(),
+            group: group.clone(),
             favorite: false,
             ..Default::default()
         });
