@@ -83,7 +83,7 @@ export function buildRows({ sessions, folders = [], collapsed = new Set(), query
       rows.push({ kind: 'folder', path, name: leafOf(path), depth, count: counts.get(path) || 0, collapsed: isCollapsed, hasChildren });
       if (!isCollapsed) walk(path, depth + 1);
     }
-    for (const session of (sessionsIn.get(parent) || []).sort((a, b) => byName(a.name, b.name))) rows.push({ kind: 'session', session, depth });
+    for (const session of (sessionsIn.get(parent) || []).sort((a, b) => Number(!!b.favorite) - Number(!!a.favorite) || byName(a.name, b.name))) rows.push({ kind: 'session', session, depth });
   };
   walk('', 0);
   return rows;

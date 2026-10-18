@@ -81,10 +81,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .primary:hover, .react-broadcast:hover { filter: brightness(1.1); }
 .react-editor-actions button, .react-editor-footer button, .react-macro-toolbar button, .react-macro-row button, .react-sftp-header button, .react-sftp-path button, .react-sftp-buttons button {
   color: var(--text); background: var(--raised); border: 1px solid var(--line-2); border-radius: var(--radius); padding: 7px 13px; }
-.react-editor-actions button:hover:not(:disabled), .react-editor-footer button:hover:not(:disabled), .react-macro-toolbar button:hover, .react-macro-row button:hover:not(:disabled), .react-sftp-header button:hover, .react-sftp-path button:hover:not(:disabled), .react-sftp-buttons button:hover:not(:disabled) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--raised)); }
+.react-editor-actions button:hover:not(:disabled):not(.primary), .react-editor-footer button:hover:not(:disabled):not(.primary), .react-macro-toolbar button:hover:not(.primary), .react-macro-row button:hover:not(:disabled), .react-sftp-header button:hover, .react-sftp-path button:hover:not(:disabled), .react-sftp-buttons button:hover:not(:disabled) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--raised)); }
 button:disabled { cursor: not-allowed; opacity: .45; }
 .react-editor-footer button.primary, .react-macro-toolbar button.primary, .react-editor-actions button.primary { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
 .react-editor-footer button.danger { color: #fff; background: #b3382c; border-color: #ff8b78; }
+.react-editor-footer button.primary:hover:not(:disabled), .react-editor-actions button.primary:hover:not(:disabled), .react-macro-toolbar button.primary:hover { filter: brightness(1.1); }
+.react-editor-footer button.danger:hover:not(:disabled) { filter: brightness(1.12); }
 
 /* main grid */
 .react-main { display: grid; grid-template-columns: 52px 308px minmax(0, 1fr); min-height: 0; flex: 1; }
@@ -152,7 +154,9 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .react-menu button:hover { background: var(--raised); }
 .react-menu button.danger { color: var(--bad); }
 .react-menu .sep { margin-top: 5px; padding: 7px 12px 4px; color: var(--muted); border-top: 1px solid var(--line); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.react-menu .list { display: flex; flex-direction: column; max-height: 190px; overflow: auto; }
+.react-menu .list { display: flex; flex-direction: column; max-height: 150px; overflow: auto; }
+.react-menu .confirm-text { padding: 8px 12px 6px; font-weight: 600; }
+.react-menu .confirm-text small { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; font-weight: 400; line-height: 1.4; }
 
 /* workspace */
 .react-workspace { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--bg); }
