@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Session, SessionType } from './react-types';
 import { tauriInvoke } from './react-types';
+import { colorFor, iconFor } from './icons.js';
 
 interface SessionEditorProps {
   session: Session;
@@ -50,8 +51,8 @@ export default function SessionEditor({ session, onSave, onCancel }: SessionEdit
   };
   useEffect(() => { if (tab === 'Protocol' && !isProtocol) setTab('Basic'); }, [isProtocol, tab]);
   return <section className="react-editor" aria-label="Session editor">
-    <header className="react-editor-header"><div><span className="react-editor-kicker">SESSION EDITOR</span><h2>{draft.name || 'New session'}</h2></div><button onClick={onCancel} aria-label="Close session editor">×</button></header>
-    <div className="react-editor-protocols">{protocols.map(protocol => <button key={protocol} className={draft.session_type === protocol ? 'selected' : ''} onClick={() => update('session_type', protocol)}>{protocol}</button>)}</div>
+    <header className="react-editor-header"><div className="react-editor-head-icon" style={{ flexDirection: 'row' }}><span className="react-protocol-icon" style={{ '--c': colorFor(draft.session_type) } as React.CSSProperties} dangerouslySetInnerHTML={{ __html: iconFor(draft.session_type) }} /><div style={{ display: 'flex', flexDirection: 'column' }}><span className="react-editor-kicker">SESSION EDITOR</span><h2>{draft.name || 'New session'}</h2></div></div><button onClick={onCancel} aria-label="Close session editor">×</button></header>
+    <div className="react-editor-protocols">{protocols.map(protocol => <button key={protocol} className={draft.session_type === protocol ? 'selected' : ''} style={{ '--c': colorFor(protocol) } as React.CSSProperties} onClick={() => update('session_type', protocol)}><span className="glyph" aria-hidden="true" dangerouslySetInnerHTML={{ __html: iconFor(protocol) }} />{protocol}</button>)}</div>
     <nav className="react-editor-tabs">{(['Basic', 'SSH', 'Terminal', ...(isProtocol ? ['Protocol'] : [])] as const).map(name => <button key={name} className={tab === name ? 'selected' : ''} onClick={() => setTab(name as 'Basic' | 'SSH' | 'Terminal' | 'Protocol')}>{name}</button>)}</nav>
     <div className="react-editor-form">
       {tab === 'Basic' && <>
