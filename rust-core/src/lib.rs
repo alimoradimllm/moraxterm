@@ -562,6 +562,7 @@ pub fn import_bookmarks(text: &str) -> Result<Vec<Session>, ImportError> {
         let session_type = match mode {
             "0" | "7" => "SSH",
             "4" => "Rdp",
+            "5" => "Vnc",
             "14" => "WSL",
             _ => continue,
         };

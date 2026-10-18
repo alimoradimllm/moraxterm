@@ -25,6 +25,17 @@ class ImporterTests(unittest.TestCase):
         self.assertNotIn('password', str(session.public_dict()).lower())
         self.assertNotIn('must-not-enter-model', str(session.public_dict()))
 
+    def test_imports_vnc_bookmark_mode(self):
+        content = "[Bookmarks]\nvnc-box=#128#5%server.example%5900%-1%0"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'MobaXterm.mxtsessions'
+            path.write_text(content, encoding='utf-8')
+            sessions = import_ini(path)
+        self.assertEqual(len(sessions), 1)
+        self.assertEqual(sessions[0].session_type, 'Vnc')
+        self.assertEqual(sessions[0].host, 'server.example')
+        self.assertEqual(sessions[0].port, 5900)
+
     def test_infers_local_shell_and_skips_non_session_sections(self):
         content = """[Terminal]\nCommand=/bin/bash\n\n[SessionShell]\nCommand=/bin/zsh\n"""
         with tempfile.TemporaryDirectory() as directory:
