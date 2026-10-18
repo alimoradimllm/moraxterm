@@ -1,6 +1,6 @@
 # Moraxterm remaining work and verification status
 
-_Last reviewed: 2026-10-17. Repository: `alimoradimllm/moraxterm`. Current release: `v0.1.24`._
+_Last reviewed: 2026-10-18 (`main` at `357d147`). Repository: `alimoradimllm/moraxterm`. Current release: `v0.1.24`._
 
 This document separates verified behavior from planned work. It is not a claim
 of full third-party terminal workspace parity.
@@ -96,6 +96,32 @@ of full third-party terminal workspace parity.
 - Windows and Linux terminal runtime coverage, authenticated remote protocol
   tests, detached windows, advanced tools, and packaging/release work remain open.
 
+## Known gaps found 2026-10-18
+
+Open items from the colourful-UI, folder, session-action and SSH-hardening work.
+Nothing here is claimed as done.
+
+- **Licences:** the Windows installer bundles MSYS2 Fish, Bash, Wget and inetutils
+  without their GPL licence texts or source pointers (`THIRD_PARTY_NOTICES.md`
+  records the gap). Needs a PR and a legal review.
+- **Themes:** Light is reviewed. Amber and Midnight are rendered but not reviewed in
+  detail. The Light terminal theme with real shell output is unchecked.
+- **Folder tree:** real OS mouse drag is unconfirmed. Empty folders are stored only in
+  localStorage. Sessions cannot be ordered manually.
+- **Sessions:** no undo after a confirmed delete. A saved SSH, Telnet or VNC session
+  whose user or host starts with `-` or contains whitespace is now refused (PR #23);
+  existing sessions have not been checked for this.
+- **Telnet and VNC:** the new host check was added by reading the code; the clients
+  were not run.
+- **SSH launch change (PR #23):** verified with real OpenSSH and unit tests; the built
+  exe was not re-run for it. The SFTP/SCP `--` additions are defence in depth, since
+  injection could not be reproduced there.
+- **Styling:** the old `style.css` is still imported next to `react-ui.css`.
+- **README:** no real screenshot yet. The Persian page has had no native-speaker review.
+- **Repository hygiene:** about 19 merged `agent/*` branches remain on GitHub.
+- **UI test runs:** concurrent sessions must use their own `MORAXTERM_UI_PORT`
+  (`scripts/ui_guard.py free-port`); two sessions on the default port still collide.
+
 ## P0: daily terminal and SSH workflow
 
 ### Windows terminal runtime
@@ -132,9 +158,11 @@ of full third-party terminal workspace parity.
 
 ### Session manager
 
-- Add nested folders and drag-and-drop movement.
-- Add rename and duplicate operations.
-- Add protocol-specific editors for SSH, RDP, VNC, WSL, Telnet, and Serial.
+- Nested folders, drag-and-drop movement, rename, duplicate, favourites and
+  delete-with-confirmation are merged (PRs #20, #22) and covered by built-exe
+  suites (`ui_folders_test.py` 24 checks, `ui_session_ops_test.py` 28 checks) using
+  synthetic DOM drag events and real clicks. A real OS mouse drag is not confirmed.
+- Protocol-specific editors exist for SSH, RDP, VNC, WSL, Telnet, and Serial.
 - Add connection-state indicators and complete duplicate handling during import.
 - Add migration tests for older SQLite records.
 
