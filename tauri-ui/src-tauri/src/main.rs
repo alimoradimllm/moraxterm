@@ -908,6 +908,14 @@ fn sftp_preview(
     String::from_utf8(data).map_err(|_| "remote preview supports UTF-8 text files only".into())
 }
 
+fn known_hosts_lookup_key(host: &str, port: u16) -> String {
+    if port == 22 {
+        host.trim().to_string()
+    } else {
+        format!("[{}]:{}", host.trim(), port)
+    }
+}
+
 #[tauri::command]
 fn ssh_known_hosts_status(host: String, port: u16) -> Result<String, String> {
     if host.trim().is_empty() || port == 0 {
@@ -923,12 +931,13 @@ fn ssh_known_hosts_status(host: String, port: u16) -> Result<String, String> {
             path.display()
         ));
     }
+    let lookup_key = known_hosts_lookup_key(&host, port);
     let output = std::process::Command::new(if cfg!(windows) {
         "ssh-keygen.exe"
     } else {
         "ssh-keygen"
     })
-    .args(["-F", host.trim(), "-f", path.to_string_lossy().as_ref()])
+    .args(["-F", &lookup_key, "-f", path.to_string_lossy().as_ref()])
     .output()
     .map_err(|e| format!("cannot run ssh-keygen: {e}"))?;
     Ok(format!(
@@ -1019,6 +1028,9 @@ fn ssh_known_hosts_add(
     port: u16,
     expected_fingerprint: String,
 ) -> Result<String, String> {
+    if expected_fingerprint.trim().is_empty() {
+        return Err("host-key fingerprint confirmation is required".into());
+    }
     let output = scan_host_key(host.trim(), port)?;
     if !output.status.success() || output.stdout.is_empty() {
         return Err("host-key scan returned no key".into());
@@ -2458,9 +2470,22 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{
-        embedded_fish_command_not_found_script, format_socket_address, scan_ports,
-        take_startup_cursor_query, EMBEDDED_DIG_WRAPPER, EMBEDDED_RUNTIME_ARCHIVE,
+        embedded_fish_command_not_found_script, format_socket_address, known_hosts_lookup_key,
+        scan_ports, take_startup_cursor_query, EMBEDDED_DIG_WRAPPER, EMBEDDED_RUNTIME_ARCHIVE,
     };
+
+    #[test]
+    fn known_hosts_uses_plain_host_for_default_ssh_port() {
+        assert_eq!(known_hosts_lookup_key(" example.test ", 22), "example.test");
+    }
+
+    #[test]
+    fn known_hosts_uses_bracketed_host_and_port_for_non_default_port() {
+        assert_eq!(
+            known_hosts_lookup_key(" example.test ", 2222),
+            "[example.test]:2222"
+        );
+    }
 
     #[test]
     fn startup_cursor_query_is_answered_once_and_removed_from_the_stream() {
