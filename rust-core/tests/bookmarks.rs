@@ -22,3 +22,11 @@ fn imports_rdp_and_wsl_modes() {
         ["Rdp", "WSL"]
     );
 }
+
+#[test]
+fn preserves_mobaxterm_subrep_as_normalized_group() {
+    let text = "[Bookmarks_7]\nSubRep=Operations\\Linux\\Production\nnode=#109#0%server.example%22%operator%%-1";
+    let sessions = import_bookmarks(text).unwrap();
+    assert_eq!(sessions.len(), 1);
+    assert_eq!(sessions[0].group, "Operations/Linux/Production");
+}
