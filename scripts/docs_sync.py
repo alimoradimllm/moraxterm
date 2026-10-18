@@ -93,6 +93,20 @@ def generate(root, verify=False):
     return changed
 
 
+def missing_from_index(root):
+    """Change files that AGENTS.md does not link. Reads the directory and the file directly, not through render_block,
+    so a limit or bug in the generator cannot hide a gap (it once cut the index to the newest 15)."""
+    agents = Path(root) / "AGENTS.md"
+    if not agents.is_file():
+        return []
+    text = agents.read_text(encoding="utf-8")
+    start, end = text.find("<!-- CHANGE-INDEX:START -->"), text.find("<!-- CHANGE-INDEX:END -->")
+    block = text[start:end] if start != -1 and end > start else text
+    folder = Path(root) / FRAGMENT_DIR
+    names = sorted(p.name for p in folder.glob("*.md") if FRAGMENT_RE.match(f"{FRAGMENT_DIR}/{p.name}")) if folder.is_dir() else []
+    return [name for name in names if f"{FRAGMENT_DIR}/{name}" not in block]
+
+
 def validate_fragment(text):
     problems = []
     first = next((line for line in text.splitlines() if line.strip()), "")
@@ -167,6 +181,12 @@ def main(argv=None):
         if args.verify and changed:
             print("stale generated blocks: " + ", ".join(changed) + ". Run: python scripts/docs_sync.py generate", file=sys.stderr)
             return 1
+        if args.verify:
+            missing = missing_from_index(root)
+            if missing:
+                shown = ", ".join(missing[:5]) + (f" (+{len(missing) - 5} more)" if len(missing) > 5 else "")
+                print(f"AGENTS.md does not list {len(missing)} change file(s): {shown}", file=sys.stderr)
+                return 1
         # Bare LF on every platform: a hook captures this with $(...) and a stray CR would make `git add` fail.
         # .buffer: text mode would turn "\n" into "\r\n" on Windows
         sys.stdout.buffer.write("".join(f"{name}\n" for name in changed).encode("utf-8"))
