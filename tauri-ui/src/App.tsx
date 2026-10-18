@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { iconFor } from './icons.js';
+import { colorFor, iconFor, logoSvg, toolColor, toolIconFor } from './icons.js';
+import { applyAppTheme, terminalThemeFor } from './theme.js';
 import SessionEditor from './SessionEditor';
 import Settings, { defaultUiSettings, UiSettings } from './Settings';
 import MacroManager, { Macro } from './MacroManager';
@@ -27,26 +28,43 @@ interface Tab {
 
 const remoteTypes = new Set(['SSH', 'TELNET', 'RDP', 'Rdp', 'VNC', 'Vnc', 'WSL', 'Serial', 'Unix', 'Shell']);
 
-function Toolbar({ onNewShell, onHome, onEdit, onSettings, onMacros, onMultiExec, onSftp, onSplit, onDuplicate, onTools, onView, onTunnel, onHelp, onXserver }: { onNewShell: () => void; onHome: () => void; onEdit: () => void; onSettings: () => void; onMacros: () => void; onMultiExec: () => void; onSftp: () => void; onSplit: () => void; onDuplicate: () => void; onTools: () => void; onView: () => void; onTunnel: () => void; onHelp: () => void; onXserver: () => void }) {
-  const items = [
-    ['▣', 'Session', onNewShell], ['✣', 'Servers', onHome], ['⚒', 'Tools', onTools],
-    ['★', 'Sessions', onEdit], ['▣', 'View', onView], ['▤', 'Split', onSplit],
-    ['⧉', 'Duplicate', onDuplicate], ['⇄', 'MultiExec', onMultiExec], ['⇆', 'Tunneling', onTunnel],
-    ['⇅', 'Packages', onSftp], ['⚙', 'Settings', onSettings], ['?', 'Help', onHelp],
-  ] as const;
+type ToolItem = { icon: string; label: string; action: () => void; primary?: boolean; on?: boolean };
+
+function Tile({ icon }: { icon: string }) {
+  return <span className="tile" aria-hidden="true" dangerouslySetInnerHTML={{ __html: toolIconFor(icon) }} />;
+}
+
+function ToolButton({ item }: { item: ToolItem }) {
+  return <button className={`react-tool${item.primary ? ' primary' : ''}${item.on ? ' on' : ''}`} style={{ '--c': toolColor(item.icon) } as React.CSSProperties} onClick={item.action} title={item.label}>
+    <Tile icon={item.icon} /><small>{item.label}</small>
+  </button>;
+}
+
+function Toolbar({ multiExec, split, onNewShell, onHome, onEdit, onSettings, onMultiExec, onSftp, onSplit, onDuplicate, onTools, onView, onTunnel, onHelp, onXserver }: { multiExec: boolean; split: boolean; onNewShell: () => void; onHome: () => void; onEdit: () => void; onSettings: () => void; onMacros: () => void; onMultiExec: () => void; onSftp: () => void; onSplit: () => void; onDuplicate: () => void; onTools: () => void; onView: () => void; onTunnel: () => void; onHelp: () => void; onXserver: () => void }) {
+  const groups: ToolItem[][] = [
+    [{ icon: 'session', label: 'Session', action: onNewShell, primary: true }, { icon: 'servers', label: 'Servers', action: onHome }, { icon: 'sessions', label: 'Sessions', action: onEdit }],
+    [{ icon: 'view', label: 'View', action: onView }, { icon: 'split', label: 'Split', action: onSplit, on: split }, { icon: 'duplicate', label: 'Duplicate', action: onDuplicate }, { icon: 'multiexec', label: 'MultiExec', action: onMultiExec, on: multiExec }],
+    [{ icon: 'tools', label: 'Tools', action: onTools }, { icon: 'tunnel', label: 'Tunneling', action: onTunnel }, { icon: 'sftp', label: 'SFTP', action: onSftp }],
+    [{ icon: 'settings', label: 'Settings', action: onSettings }, { icon: 'help', label: 'Help', action: onHelp }],
+  ];
   return <div className="react-toolbar">
-    {items.map(([symbol, label, action]) => <button key={label} className={label === 'Session' ? 'react-tool primary' : 'react-tool'} onClick={action} title={label}>
-      <span aria-hidden="true">{symbol}</span><small>{label}</small>
-    </button>)}
+    {groups.map((group, index) => <Fragment key={index}>{index > 0 && <span className="react-tool-sep" />}{group.map(item => <ToolButton key={item.label} item={item} />)}</Fragment>)}
     <span className="react-toolbar-spacer" />
-    <button className="react-tool" title="X server" onClick={onXserver}><span>⚔</span><small>X server</small></button>
-    <button className="react-tool" title="Exit" onClick={() => window.close()}><span>⏻</span><small>Exit</small></button>
+    <ToolButton item={{ icon: 'xserver', label: 'X server', action: onXserver }} />
+    <ToolButton item={{ icon: 'exit', label: 'Exit', action: () => window.close() }} />
   </div>;
 }
 
 function ProtocolIcon({ type }: { type: string }) {
-  return <span className="react-protocol-icon" dangerouslySetInnerHTML={{ __html: iconFor(type) }} />;
+  return <span className="react-protocol-icon" style={{ '--c': colorFor(type) } as React.CSSProperties} dangerouslySetInnerHTML={{ __html: iconFor(type) }} />;
 }
+
+function MiniIcon({ name }: { name: string }) {
+  return <span className="mini" style={{ display: 'inline-block', width: 18, height: 18 }} aria-hidden="true" dangerouslySetInnerHTML={{ __html: toolIconFor(name) }} />;
+}
+
+const quickProtocols = ['SSH', 'Unix', 'WSL', 'Shell', 'Telnet', 'Rdp', 'Vnc', 'Serial'] as const;
+const defaultPorts: Record<string, number> = { SSH: 22, Telnet: 23, Rdp: 3389, Vnc: 5900 };
 
 function SessionSidebar({ sessions, activeId, onOpen, onHome, onEdit, onTools, onMacros, onNotice }: {
   sessions: Session[]; activeId?: string; onOpen: (session: Session) => void; onHome: () => void; onEdit: (session: Session) => void; onTools: () => void; onMacros: () => void; onNotice: (message: string) => void;
@@ -61,17 +79,17 @@ function SessionSidebar({ sessions, activeId, onOpen, onHome, onEdit, onTools, o
   return <aside className="react-sidebar">
     <div className="react-side-tabs"><button className="selected" onClick={onHome}>Sessions</button><button onClick={onTools}>Tools</button><button onClick={onMacros}>Macros</button></div>
     <div className="react-side-search"><input aria-label="Quick find sessions" placeholder="Quick find sessions" value={query} onChange={event => setQuery(event.target.value)} /></div>
-    <div className="react-tree-header"><strong>★ User sessions</strong><button title="New folder" onClick={() => onNotice('Folder management is not available in the React workspace yet.')}>📁＋</button><button title="Edit selected session" onClick={() => { const selected = sessions.find(session => session.name === activeId); if (selected) onEdit(selected); else onNotice('Select a session before editing it.'); }}>✎</button><button title="Refresh sessions" onClick={onHome}>↻</button></div>
+    <div className="react-tree-header"><strong>User sessions</strong><button title="New folder" onClick={() => onNotice('Folder management is not available in the React workspace yet.')}><MiniIcon name="folderPlus" /></button><button title="Edit selected session" onClick={() => { const selected = sessions.find(session => session.name === activeId); if (selected) onEdit(selected); else onNotice('Select a session before editing it.'); }}><MiniIcon name="edit" /></button><button title="Refresh sessions" onClick={onHome}><MiniIcon name="refresh" /></button></div>
     <div className="react-session-list">
       {Object.entries(grouped).map(([group, entries]) => <section key={group}>
         <h3>{group}</h3>
-        {entries.map(session => <button key={`${session.session_type}:${session.name}`} className={activeId === session.name ? 'react-session active' : 'react-session'} onClick={() => onOpen(session)} onDoubleClick={() => onOpen(session)}>
+        {entries.map(session => <button key={`${session.session_type}:${session.name}`} style={{ '--c': colorFor(session.session_type) } as React.CSSProperties} className={activeId === session.name ? 'react-session active' : 'react-session'} onClick={() => onOpen(session)} onDoubleClick={() => onOpen(session)}>
           <ProtocolIcon type={session.session_type} /><span><strong>{session.name}</strong><small>{session.host || session.session_type}</small></span><em>{session.favorite ? '★' : ''}</em>
         </button>)}
       </section>)}
       {!visible.length && <p className="react-empty">No matching sessions</p>}
     </div>
-    <div className="react-side-footer"><span>▣ Remote monitoring</span><label><input type="checkbox" defaultChecked /> Follow terminal folder</label></div>
+    <div className="react-side-footer"><span><MiniIcon name="monitor" /> Remote monitoring</span><label><input type="checkbox" defaultChecked /> Follow terminal folder</label></div>
   </aside>;
 }
 
@@ -84,7 +102,7 @@ function TerminalPane({ tab, settings, multiExec, excluded, execStatus, onToggle
       convertEol: true,
       cursorBlink: settings.cursorBlink,
       fontSize: settings.fontSize,
-      theme: { background: '#080b0e', foreground: '#e6edf3', cursor: '#55d6ff', green: '#25d18a', blue: '#55b9ff', yellow: '#ffd166' },
+      theme: terminalThemeFor(settings.terminalTheme),
     });
     const fit = new FitAddon();
     terminal.loadAddon(fit);
@@ -132,6 +150,7 @@ function TerminalPane({ tab, settings, multiExec, excluded, execStatus, onToggle
       terminal.dispose();
     };
   }, []);
+  useEffect(() => { if (terminalRef.current) terminalRef.current.options.theme = terminalThemeFor(settings.terminalTheme); }, [settings.terminalTheme]);
   const reconnect = async () => {
     onState('starting');
     try {
@@ -146,7 +165,7 @@ function TerminalPane({ tab, settings, multiExec, excluded, execStatus, onToggle
   return <div className="react-terminal-pane">
     <div className="react-pane-bar"><span><ProtocolIcon type={tab.session.session_type} /> {tab.session.name}</span><span className="react-terminal-actions">{multiExec && <label className="react-exclude"><input type="checkbox" checked={excluded} onChange={onToggleExclude} /> Exclude {tab.session.name} from MultiExec mode</label>}{multiExec && !excluded && execStatus && <span className={`react-exec-status ${execStatus}`}>{execStatus === 'sent' ? '✓ sent' : '✕ failed'}</span>}<span className={`react-state ${tab.state}`}>{tab.state}</span><button onClick={resume} disabled={tab.state === 'starting'} title="Resume terminal process">Resume</button><button onClick={reconnect} title="Reconnect terminal">Reconnect</button><button onClick={onClose} title="Close terminal">Close</button></span></div>
     {tab.error && <div className="react-terminal-error" role="alert">{tab.error}</div>}
-    <div className="react-terminal-host" ref={hostRef} tabIndex={0} onPointerDown={() => terminalRef.current?.focus()} onKeyDown={() => terminalRef.current?.focus()} />
+    <div className="react-terminal-host" style={{ background: terminalThemeFor(settings.terminalTheme).background }} ref={hostRef} tabIndex={0} onPointerDown={() => terminalRef.current?.focus()} onKeyDown={() => terminalRef.current?.focus()} />
   </div>;
 }
 
@@ -164,6 +183,7 @@ export default function App() {
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [execStatus, setExecStatus] = useState<Record<string, 'sent' | 'failed'>>({});
   const latest = useRef<{ sendInput: (id: string, data: string) => void; multiPaste: () => void }>({ sendInput: () => {}, multiPaste: () => {} });
+  useEffect(() => { applyAppTheme(uiSettings.appTheme); }, [uiSettings.appTheme]);
   useEffect(() => {
     tauriInvoke?.<Session[]>('list_sessions').then(value => { if (Array.isArray(value) && value.length) setSessions(value); }).catch(() => {});
   }, []);
@@ -193,6 +213,7 @@ export default function App() {
     const host = quick.trim();
     if (host) openSession({ name: host, host, session_type: 'SSH', port: 22 });
   };
+  const newSessionOf = (type: string) => setEditorSession({ name: `New ${type} session`, session_type: type, host: '', username: '', port: defaultPorts[type] ?? 0, ...(type === 'Unix' ? { unix_shell: 'fish' } : {}) });
   const saveSession = (session: Session) => {
     setSessions(current => [...current.filter(item => !(item.name === session.name && item.session_type === session.session_type)), session]);
     tauriInvoke?.('save_session', { session }).catch(() => {});
@@ -254,19 +275,19 @@ export default function App() {
   };
   const overlayOpen = Boolean(editorSession || panel || !tabs.length || !active);
   return <div className="react-app-shell">
-    <div className="react-menu-row"><strong>Moraxterm</strong><button onClick={() => showNotice('Use Session or Start local terminal to open a terminal.')}>Terminal</button><button onClick={() => { setTabs([]); setPanel(undefined); }}>Sessions</button><button onClick={openView}>View</button><button onClick={openXserver}>X server</button><button onClick={openTools}>Tools</button><button onClick={() => setPanel('settings')}>Settings</button><button onClick={() => setPanel('macros')}>Macros</button><button onClick={openHelp}>Help</button></div>
-    <Toolbar onNewShell={() => openSession({ name: 'Local Shell', session_type: 'Unix', host: '', username: '', port: 0, unix_shell: 'fish' })} onHome={() => { setActiveId(undefined); setEditorSession(undefined); setPanel(undefined); }} onEdit={() => { if (active) setEditorSession(active.session); else if (sessions[0]) setEditorSession(sessions[0]); }} onSettings={() => setPanel('settings')} onMacros={() => setPanel('macros')} onMultiExec={openMultiExec} onSftp={() => setPanel('sftp')} onSplit={splitWorkspace} onDuplicate={duplicateActive} onTools={openTools} onView={openView} onTunnel={openTunnel} onHelp={openHelp} onXserver={openXserver} />
+    <div className="react-menu-row"><span className="react-brand"><span className="logo" aria-hidden="true" dangerouslySetInnerHTML={{ __html: logoSvg }} />Moraxterm</span><button onClick={() => showNotice('Use Session or Start local terminal to open a terminal.')}>Terminal</button><button onClick={() => { setTabs([]); setPanel(undefined); }}>Sessions</button><button onClick={openView}>View</button><button onClick={openXserver}>X server</button><button onClick={openTools}>Tools</button><button onClick={() => setPanel('settings')}>Settings</button><button onClick={() => setPanel('macros')}>Macros</button><button onClick={openHelp}>Help</button></div>
+    <Toolbar multiExec={multiExec} split={Boolean(split)} onNewShell={() => openSession({ name: 'Local Shell', session_type: 'Unix', host: '', username: '', port: 0, unix_shell: 'fish' })} onHome={() => { setActiveId(undefined); setEditorSession(undefined); setPanel(undefined); }} onEdit={() => { if (active) setEditorSession(active.session); else if (sessions[0]) setEditorSession(sessions[0]); }} onSettings={() => setPanel('settings')} onMacros={() => setPanel('macros')} onMultiExec={openMultiExec} onSftp={() => setPanel('sftp')} onSplit={splitWorkspace} onDuplicate={duplicateActive} onTools={openTools} onView={openView} onTunnel={openTunnel} onHelp={openHelp} onXserver={openXserver} />
     {notice && <div className="react-action-notice" role="status">{notice}<button aria-label="Dismiss notice" onClick={() => setNotice(undefined)}>×</button></div>}
-    <main className="react-main"><nav className="react-rail"><button className="active" onClick={() => setActiveId(undefined)} title="Home">★</button><button onClick={openTools} title="Tools">⚒</button><button onClick={openTunnel} title="Tunneling">➤</button><button onClick={openView} title="View">◆</button></nav><SessionSidebar sessions={sessions} activeId={active?.session.name} onOpen={openSession} onHome={() => setActiveId(undefined)} onEdit={setEditorSession} onTools={openTools} onMacros={() => setPanel('macros')} onNotice={showNotice} />
+    <main className="react-main"><nav className="react-rail"><button className={!active ? 'active' : ''} style={{ '--c': toolColor('home') } as React.CSSProperties} onClick={() => { setActiveId(undefined); setPanel(undefined); }} title="Home"><Tile icon="home" /></button><button style={{ '--c': toolColor('tools') } as React.CSSProperties} onClick={openTools} title="Tools"><Tile icon="tools" /></button><button style={{ '--c': toolColor('tunnel') } as React.CSSProperties} onClick={openTunnel} title="Tunneling"><Tile icon="tunnel" /></button><button style={{ '--c': toolColor('view') } as React.CSSProperties} onClick={openView} title="View"><Tile icon="view" /></button></nav><SessionSidebar sessions={sessions} activeId={active?.session.name} onOpen={openSession} onHome={() => setActiveId(undefined)} onEdit={setEditorSession} onTools={openTools} onMacros={() => setPanel('macros')} onNotice={showNotice} />
       <section className="react-workspace">
         {multiExec && <div className="react-multiexec-active" role="status">
           <strong>MultiExec mode is active:</strong> input typed in any terminal is sent to every other terminal that is not excluded.
           <span className="react-multiexec-count">{pasteTargets({ tabs, excluded }).length} target(s)</span>
           <span className="react-multiexec-actions"><button onClick={() => latest.current.multiPaste()} title="Ctrl+Shift+Insert">Multi-paste</button><button onClick={() => setPanel('multiexec')}>Targets</button><button className="danger" onClick={exitMultiExec}>Exit multi-execution mode</button></span>
         </div>}
-        {overlayOpen ? (editorSession ? <SessionEditor session={editorSession} onSave={saveSession} onCancel={() => setEditorSession(undefined)} /> : panel === 'settings' ? <Settings value={uiSettings} onSave={saveSettings} onCancel={() => setPanel(undefined)} /> : panel === 'macros' ? <MacroManager activeTerminalId={active?.id} onPlay={playMacro} onClose={() => setPanel(undefined)} /> : panel === 'multiexec' ? <MultiExecManager targets={tabs.map(tab => ({ id: tab.id, name: tab.session.name, type: tab.session.session_type, state: tab.state }))} excluded={excluded} status={execStatus} onToggle={toggleExclude} onSetExcluded={setExcluded} onSend={(data) => { const ids = pasteTargets({ tabs, excluded }); broadcast(ids, data).then(mergeStatus); }} onExit={exitMultiExec} onClose={() => setPanel(undefined)} /> : panel === 'tunnel' ? <TunnelManager onClose={() => setPanel(undefined)} /> : panel === 'tools' ? <ToolsPanel onClose={() => setPanel(undefined)} /> : panel === 'sftp' ? <SftpPane session={active?.session || sessions.find(item => item.session_type === 'SSH')} onClose={() => setPanel(undefined)} /> : !tabs.length || !active ? <div className="react-home"><div className="react-home-mark">▣</div><h1>Moraxterm</h1><p>Your terminal workspace</p><div><button className="primary" onClick={() => openSession({ name: 'Local Shell', session_type: 'Unix', host: '', username: '', port: 0, unix_shell: 'fish' })}>＋ Start local terminal</button><button onClick={() => setActiveId(undefined)}>↻ Recover previous sessions</button></div><input aria-label="Find existing session or server name" placeholder="Find existing session or server name..." /><h2>Recent sessions</h2><div className="react-recent">{sessions.slice(0, 6).map(session => <button key={session.name} onClick={() => openSession(session)}><ProtocolIcon type={session.session_type} /><span>{session.name}<small>{session.host || session.session_type}</small></span></button>)}</div></div> : null) : null}
+        {overlayOpen ? (editorSession ? <SessionEditor session={editorSession} onSave={saveSession} onCancel={() => setEditorSession(undefined)} /> : panel === 'settings' ? <Settings value={uiSettings} onSave={saveSettings} onCancel={() => setPanel(undefined)} /> : panel === 'macros' ? <MacroManager activeTerminalId={active?.id} onPlay={playMacro} onClose={() => setPanel(undefined)} /> : panel === 'multiexec' ? <MultiExecManager targets={tabs.map(tab => ({ id: tab.id, name: tab.session.name, type: tab.session.session_type, state: tab.state }))} excluded={excluded} status={execStatus} onToggle={toggleExclude} onSetExcluded={setExcluded} onSend={(data) => { const ids = pasteTargets({ tabs, excluded }); broadcast(ids, data).then(mergeStatus); }} onExit={exitMultiExec} onClose={() => setPanel(undefined)} /> : panel === 'tunnel' ? <TunnelManager onClose={() => setPanel(undefined)} /> : panel === 'tools' ? <ToolsPanel onClose={() => setPanel(undefined)} /> : panel === 'sftp' ? <SftpPane session={active?.session || sessions.find(item => item.session_type === 'SSH')} onClose={() => setPanel(undefined)} /> : !tabs.length || !active ? <div className="react-home"><div className="react-home-mark" aria-hidden="true" dangerouslySetInnerHTML={{ __html: logoSvg }} /><h1>Moraxterm</h1><p>Your terminal workspace</p><div className="react-home-actions"><button className="primary" onClick={() => openSession({ name: 'Local Shell', session_type: 'Unix', host: '', username: '', port: 0, unix_shell: 'fish' })}>＋ Start local terminal</button><button onClick={() => setActiveId(undefined)}>Recover previous sessions</button></div><input aria-label="Find existing session or server name" placeholder="Find existing session or server name..." /><h2>New session</h2><div className="react-protocol-tiles">{quickProtocols.map(type => <button key={type} className="react-protocol-tile" style={{ '--c': colorFor(type) } as React.CSSProperties} onClick={() => newSessionOf(type)} title={`New ${type} session`}><span className="glyph" aria-hidden="true" dangerouslySetInnerHTML={{ __html: iconFor(type) }} /><span className="name">{type === 'Rdp' ? 'RDP' : type === 'Vnc' ? 'VNC' : type}</span></button>)}</div><h2>Recent sessions</h2><div className="react-recent">{sessions.slice(0, 6).map(session => <button key={session.name} style={{ '--c': colorFor(session.session_type) } as React.CSSProperties} onClick={() => openSession(session)}><ProtocolIcon type={session.session_type} /><span>{session.name}<small>{session.host || session.session_type}</small></span></button>)}</div></div> : null) : null}
         {tabs.length > 0 && <div className="react-terminals" style={{ display: overlayOpen ? 'none' : 'flex' }}>
-          <nav className="react-tabs">{tabs.map(tab => <button key={tab.id} className={tab.id === activeId ? 'active' : ''} onClick={() => setActiveId(tab.id)}><ProtocolIcon type={tab.session.session_type} />{tab.session.name}<span className={`dot ${tab.state}`} /><b onClick={event => { event.stopPropagation(); closeTab(tab.id); }}>×</b></button>)}</nav>
+          <nav className="react-tabs">{tabs.map(tab => <button key={tab.id} style={{ '--c': colorFor(tab.session.session_type) } as React.CSSProperties} className={tab.id === activeId ? 'active' : ''} onClick={() => setActiveId(tab.id)}><ProtocolIcon type={tab.session.session_type} />{tab.session.name}<span className={`dot ${tab.state}`} /><b onClick={event => { event.stopPropagation(); closeTab(tab.id); }}>×</b></button>)}</nav>
           <div className={split ? 'react-panes react-panes-split' : 'react-panes'}>
             {tabs.map(tab => {
               const shown = !!active && (tab.id === active.id || tab.id === split?.id);

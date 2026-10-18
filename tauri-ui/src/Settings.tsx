@@ -29,7 +29,7 @@ export default function Settings({ value, onSave, onCancel }: SettingsProps) {
       {tab === 'Appearance' && <>
         <h3 className="react-settings-heading">Appearance</h3>
         <label>Application theme<select value={draft.appTheme} onChange={event => update('appTheme', event.target.value as UiSettings['appTheme'])}><option value="mobaxterm">MobaXterm</option><option value="midnight">Midnight</option><option value="light">Light</option><option value="amber">Amber</option><option value="neon">Neon</option></select></label>
-        <div className="react-editor-note">Application theme selection is stored locally and applied to the workspace on the next UI theme pass.</div>
+        <div className="react-editor-note">The application theme changes the interface colours immediately after you save. The terminal theme is independent and also applies to terminals that are already open.</div>
       </>}
       {tab === 'Terminal' && <>
         <h3 className="react-settings-heading">Terminal</h3>
