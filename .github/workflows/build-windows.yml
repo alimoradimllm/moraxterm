@@ -30,6 +30,9 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Validate release versions
+        run: python scripts/check_versions.py
+
       - name: Stage embedded Unix runtime
         shell: pwsh
         run: |
@@ -58,10 +61,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             gh release create $tag --repo $env:GITHUB_REPOSITORY --title "Moraxterm $tag" --generate-notes
           }
+          $runtimeArchive = python scripts/check_versions.py --print-embedded-runtime
           gh release upload $tag --repo $env:GITHUB_REPOSITORY --clobber `
             tauri-ui/src-tauri/target/release/bundle/msi/*.msi `
             tauri-ui/src-tauri/target/release/bundle/nsis/*-setup.exe `
-            tauri-ui/src-tauri/resources/Moraxterm_EmbeddedUnix_x64_0.1.24.tar.xz
+            "tauri-ui/src-tauri/resources/$runtimeArchive"
 
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v4
