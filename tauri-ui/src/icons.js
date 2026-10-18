@@ -34,6 +34,7 @@ const tools = {
   exit: ['#ff5d5d', '<path d="M12 3v8"/><path data-f d="M6.3 6.8a8 8 0 1 0 11.4 0"/>'],
   home: ['#ff9f43', '<path data-f d="m3 11 9-8 9 8v8a2 2 0 0 1-2 2h-4v-6H9v6H5a2 2 0 0 1-2-2z"/>'],
   folderPlus: ['#ffc857', '<path data-f d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 11v5M9.5 13.5h5"/>'],
+  folder: ['#e9b44c', '<path data-f d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'],
   edit: ['#5ac8fa', '<path data-f d="m4 20 1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19z"/><path d="m14.5 6.5 3 3"/>'],
   refresh: ['#6ee7a8', '<path d="M20 11a8 8 0 0 0-14.3-4.6L4 8"/><path d="M4 4v4h4M4 13a8 8 0 0 0 14.3 4.6L20 16"/><path d="M20 20v-4h-4"/>'],
   monitor: ['#4dd0e1', '<rect data-f x="3" y="4" width="18" height="13" rx="2"/><path d="M6 12l3-3 2.5 2.5L15 8l3 3M9 21h6"/>'],

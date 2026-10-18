@@ -8,6 +8,7 @@ T = os.path.join(tempfile.gettempdir(), "moraxterm-ui-test") + os.sep
 res = {}
 
 def js(expr): return a.eval(expr)
+
 def tab_screens():
     """Read every terminal. xterm does not repaint a hidden terminal's DOM, so each tab is
     activated before it is read; the originally active tab is restored afterwards."""
@@ -37,6 +38,13 @@ def wait(i, needle, s=8):
 win = a.call("Browser.getWindowForTarget")["result"]
 a.call("Browser.setWindowBounds", windowId=win["windowId"], bounds={"windowState": "normal", "width": 1500, "height": 850})
 a.call("Page.reload"); time.sleep(4)
+
+# Never read or write the user's REAL clipboard: replace it, inside the page only, with a variable. This must run AFTER the
+# reload above, because a reload discards it. The app's Multi-paste
+# calls navigator.clipboard.readText(), so it receives exactly the text the test sets and nothing else.
+js("""(() => { let held = ''; const stub = { writeText: async (t) => { held = String(t); }, readText: async () => held };
+  Object.defineProperty(navigator, 'clipboard', { value: stub, configurable: true }); return 'stubbed'; })()""")
+assert js("navigator.clipboard.readText().then(t => t === '')") is True, 'clipboard stub is not active; refusing to touch the real clipboard'
 
 # three local shells
 js("[...document.querySelectorAll('button.react-session')].find(x=>/Local Shell/.test(x.innerText)).click()"); time.sleep(4)
@@ -80,7 +88,7 @@ time.sleep(0.5); js("[...document.querySelectorAll('.react-tabs button')][0].cli
 # status indicators
 res["sent_indicator_visible"] = "✓ sent" in (js("document.body.innerText") or "")
 
-# Multi-paste via banner button and via Ctrl+Shift+Insert, using a known clipboard
+# Multi-paste via banner button and via Ctrl+Shift+Insert, using the in-page clipboard stub (the real clipboard is never touched)
 js("navigator.clipboard.writeText(\"Write-Output ('PASTE_' + 'BTN')\\r\")"); time.sleep(0.3)
 res["clipboard_set"] = True
 click_text("Multi-paste"); time.sleep(2)

@@ -124,6 +124,36 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .react-side-footer input { accent-color: var(--accent); }
 .react-side-footer .mini { display: inline-block; width: 16px; height: 16px; }
 
+/* session tree */
+.react-tool-icon-wrap { display: inline-flex; flex: none; width: 24px; height: 24px; align-items: center; justify-content: center; padding: 4px; border-radius: 7px; background: color-mix(in srgb, var(--c) 15%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 30%, transparent); }
+.react-tool-icon-wrap .mini, .react-tree-header .mini { display: block; width: 100%; height: 100%; }
+.react-tree-header .mini { width: 18px; height: 18px; }
+.react-folder { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 5px 6px; margin: 2px 0; border: 1px solid transparent; border-radius: 10px; cursor: pointer; user-select: none; }
+.react-folder:hover { background: var(--panel-2); border-color: var(--line); }
+.react-folder.selected { background: color-mix(in srgb, var(--accent) 10%, var(--panel)); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.react-folder .chev { width: 14px; flex: none; color: var(--faint); font-size: 11px; text-align: center; transition: transform .12s; }
+.react-folder .chev.open { transform: rotate(90deg); } .react-folder .chev.none { opacity: .25; }
+.react-folder .name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.react-folder .count { min-width: 22px; padding: 1px 7px; color: var(--muted); background: var(--raised); border-radius: 99px; font-size: 10px; font-weight: 700; text-align: center; }
+.react-folder .more { width: 24px; height: 24px; padding: 0; color: var(--muted); background: transparent; border: 0; border-radius: 6px; font-size: 16px; line-height: 1; opacity: 0; }
+.react-folder:hover .more, .react-folder.selected .more, .react-folder .more:focus-visible { opacity: 1; }
+.react-folder .more:hover { color: var(--text); background: var(--raised); }
+.react-folder.drop-ok, .react-root-drop.drop-ok { background: color-mix(in srgb, var(--accent) 20%, var(--panel)); border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.react-folder.drop-bad, .react-root-drop.drop-bad { opacity: .55; cursor: no-drop; }
+.react-session[draggable='true'], .react-folder[draggable='true'] { -webkit-user-drag: element; }
+.react-session-list.dragging .react-session, .react-session-list.dragging .react-folder { cursor: grabbing; }
+.react-root-drop { margin: 2px 0 6px; padding: 9px 12px; color: var(--muted); border: 1px dashed var(--line-2); border-radius: 10px; font-size: 12px; text-align: center; }
+.react-tree-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 6px; margin: 2px 0; }
+.react-tree-edit input { flex: 1; min-width: 0; height: 30px; padding: 4px 10px; color: var(--text); background: var(--bg); border: 1px solid var(--accent); border-radius: 8px; }
+.react-tree-edit input.bad { border-color: var(--bad); }
+.react-tree-edit small { width: 100%; padding-left: 32px; color: var(--bad); font-size: 11px; }
+.react-menu { position: fixed; z-index: 50; display: flex; flex-direction: column; width: 238px; padding: 5px; background: var(--panel); border: 1px solid var(--line-2); border-radius: 10px; box-shadow: var(--shadow); }
+.react-menu button { padding: 7px 12px; color: var(--text); text-align: left; background: transparent; border: 0; border-radius: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.react-menu button:hover { background: var(--raised); }
+.react-menu button.danger { color: var(--bad); }
+.react-menu .sep { margin-top: 5px; padding: 7px 12px 4px; color: var(--muted); border-top: 1px solid var(--line); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.react-menu .list { display: flex; flex-direction: column; max-height: 190px; overflow: auto; }
+
 /* workspace */
 .react-workspace { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--bg); }
 
