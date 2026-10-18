@@ -9,7 +9,7 @@
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:icons": "node --test tests/icons.test.mjs",
-    "test:unit": "node --test tests/icons.test.mjs tests/multiexec.test.mjs",
+    "test:unit": "node --test tests/icons.test.mjs tests/multiexec.test.mjs tests/folders.test.mjs",
     "tauri": "tauri"
   },
   "devDependencies": {

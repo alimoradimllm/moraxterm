@@ -4,6 +4,6 @@
   "version": "0.1.24",
   "identifier": "com.hermes.moraxterm-linux",
   "build": {"beforeDevCommand": "npm run dev", "devUrl": "http://localhost:1420", "beforeBuildCommand": "npm run build", "frontendDist": "../dist"},
-  "app": {"withGlobalTauri": true, "windows": [{"title": "Moraxterm", "width": 1200, "height": 760}], "security": {"csp": null}},
+  "app": {"withGlobalTauri": true, "windows": [{"title": "Moraxterm", "width": 1200, "height": 760, "dragDropEnabled": false}], "security": {"csp": null}},
   "bundle": {"active": true, "targets": "all", "resources": ["resources/embedded-unix-default-packages.txt"], "icon": ["icons/icon.png", "icons/icon.ico"]}
 }

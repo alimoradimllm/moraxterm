@@ -14,7 +14,8 @@ class App:
         self.loop = asyncio.new_event_loop()
         self.ws = self.loop.run_until_complete(websockets.connect(page_ws(), max_size=50_000_000))
         self.n = 0
-
+        # A test window rarely has real keyboard focus; without this, clipboard reads fail with "Document is not focused".
+        self.call("Emulation.setFocusEmulationEnabled", enabled=True)
     def call(self, method, **params):
         self.n += 1
         mid = self.n

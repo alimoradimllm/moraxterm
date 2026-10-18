@@ -5,13 +5,14 @@ import { colorFor, iconFor } from './icons.js';
 
 interface SessionEditorProps {
   session: Session;
+  folders?: string[];
   onSave: (session: Session) => void;
   onCancel: () => void;
 }
 
 const protocols: SessionType[] = ['SSH', 'Telnet', 'Rdp', 'Vnc', 'WSL', 'Shell', 'Serial', 'Unix'];
 
-export default function SessionEditor({ session, onSave, onCancel }: SessionEditorProps) {
+export default function SessionEditor({ session, folders = [], onSave, onCancel }: SessionEditorProps) {
   const [draft, setDraft] = useState<Session>(session);
   const [tab, setTab] = useState<'Basic' | 'SSH' | 'Terminal' | 'Protocol'>('Basic');
   const [knownHostsStatus, setKnownHostsStatus] = useState('Not checked');
@@ -59,7 +60,7 @@ export default function SessionEditor({ session, onSave, onCancel }: SessionEdit
         <label>Session name<input value={draft.name} onChange={event => update('name', event.target.value)} /></label>
         <div className="react-editor-grid"><label>Host<input value={draft.host ?? ''} onChange={event => update('host', event.target.value || undefined)} /></label><label>Port<input type="number" min="1" max="65535" value={draft.port ?? (isSsh ? 22 : '')} onChange={event => update('port', event.target.value ? Number(event.target.value) : undefined)} /></label></div>
         <label>Username<input value={draft.username ?? ''} onChange={event => update('username', event.target.value || undefined)} autoComplete="off" /></label>
-        <label>Folder<input value={draft.folder ?? ''} onChange={event => update('folder', event.target.value || undefined)} placeholder="User sessions" /></label>
+        <label>Folder<input list="react-folder-options" value={draft.folder ?? ''} onChange={event => update('folder', event.target.value || undefined)} placeholder="Top level (use Work/Prod for a sub-folder)" /><datalist id="react-folder-options">{folders.map(path => <option key={path} value={path} />)}</datalist></label>
       </>}
       {tab === 'SSH' && <>
         <div className="react-editor-note">SSH compatibility settings are stored as typed session metadata and passed to the existing Rust bridge.</div>

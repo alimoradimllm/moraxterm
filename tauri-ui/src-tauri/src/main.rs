@@ -257,7 +257,13 @@ fn debug_log_path(state: State<'_, TerminalManager>) -> Result<String, String> {
         .into_owned())
 }
 fn session_database_path() -> Result<PathBuf, String> {
-    let base = if cfg!(windows) {
+    // MORAXTERM_DATA_DIR lets tests (scripts/ui_*.py) use a throwaway database. On Windows the normal location comes from
+    // the OS known-folder API, which ignores APPDATA, so overriding that variable alone does not isolate the real profile.
+    let base = if let Some(dir) =
+        std::env::var_os("MORAXTERM_DATA_DIR").filter(|value| !value.is_empty())
+    {
+        PathBuf::from(dir)
+    } else if cfg!(windows) {
         dirs::data_dir()
             .ok_or("application data directory unavailable")?
             .join("Moraxterm")
