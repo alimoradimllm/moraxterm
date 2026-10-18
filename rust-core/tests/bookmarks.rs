@@ -39,4 +39,6 @@ fn preserves_mobaxterm_subrep_as_normalized_group() {
     let sessions = import_bookmarks(text).unwrap();
     assert_eq!(sessions.len(), 1);
     assert_eq!(sessions[0].group, "Operations/Linux/Production");
+    // The interface shows folders from `folder`, so the imported path must be there too.
+    assert_eq!(sessions[0].folder, "Operations/Linux/Production");
 }

@@ -577,6 +577,7 @@ pub fn import_bookmarks(text: &str) -> Result<Vec<Session>, ImportError> {
                 environment: std::collections::HashMap::new(),
                 startup_command: String::new(),
                 group: group.clone(),
+                folder: group.clone(),
                 favorite: false,
                 ..Default::default()
             });
@@ -598,6 +599,7 @@ pub fn import_bookmarks(text: &str) -> Result<Vec<Session>, ImportError> {
             environment: std::collections::HashMap::new(),
             startup_command: String::new(),
             group: group.clone(),
+            folder: group.clone(),
             favorite: false,
             ..Default::default()
         });
