@@ -141,7 +141,7 @@ More: [remaining work](docs/REMAINING_WORK.md) · [compatibility roadmap](docs/M
 ## Recent changes
 
 <!-- RECENT-CHANGES:START -->
-- 2026-10-18 — [<one-line title: what changed>](docs/changes/2026-10-18-2128-refresh-remaining-work.md)
+- 2026-10-18 — [Refresh REMAINING_WORK.md after the folder, session-action and SSH-hardening merges](docs/changes/2026-10-18-2128-refresh-remaining-work.md)
 - 2026-10-18 — [Stop a session's user or host name from being read as an ssh option](docs/changes/2026-10-18-2115-ssh-destination-option-injection.md)
 - 2026-10-18 — [Let each session run the UI tests on its own port, keep open tabs in step with renames, and darken Light-theme icons](docs/changes/2026-10-18-1631-ui-test-own-port-and-light-theme.md)
 - 2026-10-18 — [Rename, duplicate, favourite and delete sessions in the React UI, and stop silent overwrites](docs/changes/2026-10-18-1248-session-rename-duplicate-favorite-delete.md)
