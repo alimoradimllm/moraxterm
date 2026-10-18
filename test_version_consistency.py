@@ -8,6 +8,10 @@ SPEC = importlib.util.spec_from_file_location("check_versions", ROOT / "scripts"
 assert SPEC and SPEC.loader
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
+RUNTIME_SPEC = importlib.util.spec_from_file_location("prepare_embedded_runtime", ROOT / "scripts" / "prepare_embedded_runtime.py")
+assert RUNTIME_SPEC and RUNTIME_SPEC.loader
+RUNTIME = importlib.util.module_from_spec(RUNTIME_SPEC)
+RUNTIME_SPEC.loader.exec_module(RUNTIME)
 
 
 class VersionConsistencyTests(unittest.TestCase):
@@ -20,6 +24,10 @@ class VersionConsistencyTests(unittest.TestCase):
         self.assertEqual(
             MODULE.versions()["VERSION"],
             MODULE.versions()["tauri-ui/src-tauri/Cargo.toml"],
+        )
+        self.assertEqual(
+            RUNTIME.ARCHIVE_NAME,
+            "Moraxterm_EmbeddedUnix_x64_0.1.24.tar.xz",
         )
 
 

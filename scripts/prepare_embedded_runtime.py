@@ -9,7 +9,9 @@ import tarfile
 import urllib.request
 from pathlib import Path
 
-ARCHIVE_NAME = "Moraxterm_EmbeddedUnix_x64_0.1.24.tar.xz"
+ROOT = Path(__file__).resolve().parents[1]
+VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+ARCHIVE_NAME = f"Moraxterm_EmbeddedUnix_x64_{VERSION}.tar.xz"
 REQUIRED_MEMBERS = {"./usr/bin/fish.exe", "./usr/bin/bash.exe", "./usr/bin/ssh.exe", "./usr/bin/telnet.exe", "./usr/bin/dig"}
 
 
