@@ -27,6 +27,51 @@ def run(cwd, *args):
     return result.stdout.strip()
 
 
+class IndexCompleteness(unittest.TestCase):
+    def make_repo(self, listed, present):
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, True)
+        (root / "docs" / "changes").mkdir(parents=True)
+        for name in present:
+            (root / "docs" / "changes" / name).write_text(GOOD, encoding="utf-8")
+        links = "\n".join(f"- [x](docs/changes/{name})" for name in listed)
+        (root / "AGENTS.md").write_text(f"# A\n\n<!-- CHANGE-INDEX:START -->\n{links}\n<!-- CHANGE-INDEX:END -->\n", encoding="utf-8")
+        return root
+
+    def test_complete_index_has_nothing_missing(self):
+        names = ["2026-10-01-a.md", "2026-10-02-b.md"]
+        self.assertEqual(docs_sync.missing_from_index(self.make_repo(names, names)), [])
+
+    def test_a_change_file_left_out_of_the_index_is_reported(self):
+        root = self.make_repo(["2026-10-02-b.md"], ["2026-10-01-a.md", "2026-10-02-b.md"])
+        self.assertEqual(docs_sync.missing_from_index(root), ["2026-10-01-a.md"])
+
+    def test_a_link_outside_the_generated_block_does_not_count(self):
+        root = self.make_repo([], ["2026-10-01-a.md"])
+        agents = root / "AGENTS.md"
+        agents.write_text(agents.read_text(encoding="utf-8") + "\nsee docs/changes/2026-10-01-a.md\n", encoding="utf-8")
+        self.assertEqual(docs_sync.missing_from_index(root), ["2026-10-01-a.md"])
+
+    def test_generate_lists_every_file_even_with_more_than_fifteen(self):
+        names = [f"2026-10-{day:02d}-c{day}.md" for day in range(1, 21)]
+        root = self.make_repo([], names)
+        (root / "README.md").write_text(README, encoding="utf-8")
+        docs_sync.generate(root)
+        self.assertEqual(docs_sync.missing_from_index(root), [])
+        self.assertEqual(docs_sync.generate(root, verify=True), [])
+
+    def test_verify_command_fails_when_the_index_is_incomplete(self):
+        root = self.make_repo(["2026-10-02-b.md"], ["2026-10-01-a.md", "2026-10-02-b.md"])
+        with unittest.mock.patch.object(docs_sync, "root_dir", return_value=root), unittest.mock.patch.object(docs_sync, "generate", return_value=[]):
+            self.assertEqual(docs_sync.main(["generate", "--verify"]), 1)
+
+    def test_verify_command_passes_when_the_index_is_complete(self):
+        names = ["2026-10-01-a.md", "2026-10-02-b.md"]
+        root = self.make_repo(names, names)
+        with unittest.mock.patch.object(docs_sync, "root_dir", return_value=root), unittest.mock.patch.object(docs_sync, "generate", return_value=[]):
+            self.assertEqual(docs_sync.main(["generate", "--verify"]), 0)
+
+
 class Pure(unittest.TestCase):
     def test_exempt_paths(self):
         for path in ("README.md", "docs/x.txt", "AGENTS.md", ".gitignore", "docs/changes/2026-10-17-a.md"):
