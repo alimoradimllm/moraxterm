@@ -24,6 +24,16 @@ fn imports_rdp_and_wsl_modes() {
 }
 
 #[test]
+fn imports_vnc_bookmark_mode_five() {
+    let text = "[Bookmarks]\nvnc-box=#128#5%server.example%5900%-1%0";
+    let sessions = import_bookmarks(text).unwrap();
+    assert_eq!(sessions.len(), 1);
+    assert_eq!(sessions[0].session_type, "Vnc");
+    assert_eq!(sessions[0].host, "server.example");
+    assert_eq!(sessions[0].port, 5900);
+}
+
+#[test]
 fn preserves_mobaxterm_subrep_as_normalized_group() {
     let text = "[Bookmarks_7]\nSubRep=Operations\\Linux\\Production\nnode=#109#0%server.example%22%operator%%-1";
     let sessions = import_bookmarks(text).unwrap();

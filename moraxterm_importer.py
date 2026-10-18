@@ -65,8 +65,12 @@ def _bookmark_session(name: str, encoded: str) -> Session:
         session_type = 'WSL'
     elif mode == '0':
         session_type = 'SSH'
+    elif mode == '5':
+        session_type = 'Vnc'
     elif mode == '7':
         session_type = 'SSH'
+    elif mode == '14':
+        session_type = 'WSL'
     else:
         raise ValueError(f"unsupported bookmark mode {mode!r} for {name!r}")
     if session_type == 'WSL':
