@@ -16,6 +16,7 @@ fn ssh_plan_uses_default_port_without_password() {
             "ServerAliveInterval=30",
             "-o",
             "ServerAliveCountMax=3",
+            "--",
             "root@31.70.116.241",
         ]
     );

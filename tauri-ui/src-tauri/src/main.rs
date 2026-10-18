@@ -982,7 +982,7 @@ fn scan_host_key(host: &str, port: u16) -> Result<std::process::Output, String> 
     } else {
         "ssh-keyscan"
     })
-    .args(["-T", "8", "-p", &port.to_string(), host])
+    .args(["-T", "8", "-p", &port.to_string(), "--", host])
     .output()
     .map_err(|e| format!("cannot run ssh-keyscan: {e}"))
 }
@@ -1082,6 +1082,8 @@ fn sftp_batch_command(port: u16, username: &str, host: &str) -> std::process::Co
         &port.to_string(),
         "-b",
         "-",
+        // `--` so a user name that starts with '-' is a destination, never an ssh option such as -oProxyCommand=...
+        "--",
         &format!("{}@{}", username, host),
     ]);
     command
@@ -1274,6 +1276,7 @@ fn begin_sftp_transfer(
                 "ConnectTimeout=8",
                 "-P",
                 &port.to_string(),
+                "--",
             ]);
             if direction == "upload" {
                 fallback.args([local_path.as_str(), remote.as_str()]);
@@ -1873,6 +1876,7 @@ fn start_terminal(
         if session.host.trim().is_empty() || session.port == 0 {
             return Err("VNC session requires host and a valid port".into());
         }
+        moraxterm_core::check_target("host", session.host.trim()).map_err(|e| e.to_string())?;
         let executable = if cfg!(windows) {
             "vncviewer.exe"
         } else {
@@ -1934,6 +1938,7 @@ fn start_terminal(
         if session.host.trim().is_empty() || session.port == 0 {
             return Err("Telnet session requires host and a valid port".into());
         }
+        moraxterm_core::check_target("host", session.host.trim()).map_err(|e| e.to_string())?;
         let executable = if cfg!(windows) {
             "telnet.exe"
         } else {
@@ -2457,10 +2462,23 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    use super::sftp_batch_command;
     use super::{
         embedded_fish_command_not_found_script, format_socket_address, scan_ports,
         take_startup_cursor_query, EMBEDDED_DIG_WRAPPER, EMBEDDED_RUNTIME_ARCHIVE,
     };
+
+    #[test]
+    fn sftp_destination_is_always_behind_a_double_dash() {
+        let command = sftp_batch_command(22, "-oProxyCommand=calc", "host.example");
+        let args: Vec<String> = command
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        let n = args.len();
+        assert_eq!(args[n - 2], "--");
+        assert_eq!(args[n - 1], "-oProxyCommand=calc@host.example");
+    }
 
     #[test]
     fn startup_cursor_query_is_answered_once_and_removed_from_the_stream() {
