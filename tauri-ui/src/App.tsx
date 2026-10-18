@@ -6,7 +6,8 @@ import { applyAppTheme, terminalThemeFor } from './theme.js';
 import SessionEditor from './SessionEditor';
 import SessionTree from './SessionTree';
 import { allFolders } from './folders.js';
-import type { FolderChange } from './folders.js';
+import { planSave } from './sessionOps.js';
+import type { Change } from './sessionOps.js';
 import Settings, { defaultUiSettings, UiSettings } from './Settings';
 import MacroManager, { Macro } from './MacroManager';
 import MultiExecManager from './MultiExecManager';
@@ -70,7 +71,7 @@ const quickProtocols = ['SSH', 'Unix', 'WSL', 'Shell', 'Telnet', 'Rdp', 'Vnc', '
 const defaultPorts: Record<string, number> = { SSH: 22, Telnet: 23, Rdp: 3389, Vnc: 5900 };
 
 function SessionSidebar({ sessions, folders, activeId, onOpen, onHome, onEdit, onTools, onMacros, onApply }: {
-  sessions: Session[]; folders: string[]; activeId?: string; onOpen: (session: Session) => void; onHome: () => void; onEdit: (session: Session) => void; onTools: () => void; onMacros: () => void; onApply: (result: FolderChange, message?: string) => void;
+  sessions: Session[]; folders: string[]; activeId?: string; onOpen: (session: Session) => void; onHome: () => void; onEdit: (session: Session) => void; onTools: () => void; onMacros: () => void; onApply: (result: Change, message?: string) => unknown;
 }) {
   const [query, setQuery] = useState('');
   return <aside className="react-sidebar">
@@ -204,24 +205,38 @@ export default function App() {
     if (host) openSession({ name: host, host, session_type: 'SSH', port: 22 });
   };
   const newSessionOf = (type: string) => setEditorSession({ name: `New ${type} session`, session_type: type, host: '', username: '', port: defaultPorts[type] ?? 0, ...(type === 'Unix' ? { unix_shell: 'fish' } : {}) });
-  const saveSession = (session: Session) => {
-    setSessions(current => [...current.filter(item => !(item.name === session.name && item.session_type === session.session_type)), session]);
-    tauriInvoke?.('save_session', { session }).catch(() => {});
-    setEditorSession(undefined);
+  // Saving goes through planSave: a rename becomes "save the new name, delete the old record" (the store keys sessions by name),
+  // and a name that belongs to another session is refused instead of silently overwriting it.
+  const saveSession = async (draft: Session) => {
+    const plan = planSave(sessions, editorSession, draft);
+    if (!plan.ok) { setNotice(plan.error); return; }
+    const message = plan.renamed ? `Renamed ${plan.renamed.from} to ${plan.renamed.to}.` : `Saved ${plan.changed?.[0]?.name ?? 'session'}.`;
+    if (await applyChange(plan, message)) {
+      setEditorSession(undefined);
+      // Only the label changes for a terminal that is already running; its other settings apply the next time it starts.
+      const renamed = plan.renamed;
+      if (renamed) setTabs(current => current.map(tab => tab.session.name === renamed.from ? { ...tab, session: { ...tab.session, name: renamed.to } } : tab));
+    }
   };
   const saveFolders = (next: string[]) => { setFolders(next); localStorage.setItem('moraxterm-session-folders', JSON.stringify(next)); };
-  // Every folder action (create, rename, move, delete, drag and drop) arrives here as a computed result. Sessions are stored
-  // by the Rust side, so each changed session is saved; if any save fails the whole change is rolled back and the user is told.
-  const applyFolderChange = async (result: FolderChange, message?: string) => {
-    if (!result.ok) { if (!result.noop) setNotice(result.error || 'That change is not possible.'); return; }
+  // Every sidebar action (folders, drag and drop, save, rename, duplicate, favourite, delete) arrives here as a computed change.
+  // Sessions are stored by the Rust side, so changed sessions are saved first and removed names deleted after; if anything fails the
+  // whole change is undone in the interface and the user is told. Returns true when the change was applied.
+  const applyChange = async (result: Change, message?: string): Promise<boolean> => {
+    if (!result.ok) { if (!result.noop) setNotice(result.error || 'That change is not possible.'); return false; }
     const previousSessions = sessions; const previousFolders = folders;
     if (result.sessions) setSessions(result.sessions);
     if (result.folders) saveFolders(result.folders);
-    if (result.changed?.length) {
-      try { await Promise.all(result.changed.map(session => tauriInvoke('save_session', { session }))); }
-      catch (error) { setSessions(previousSessions); saveFolders(previousFolders); setNotice(`The change was not saved and has been undone: ${error instanceof Error ? error.message : String(error)}`); return; }
+    try {
+      await Promise.all((result.changed ?? []).map(session => tauriInvoke('save_session', { session })));
+      for (const name of result.deleted ?? []) await tauriInvoke('delete_session', { name });
+    } catch (error) {
+      setSessions(previousSessions); saveFolders(previousFolders);
+      setNotice(`The change was not saved and has been undone: ${error instanceof Error ? error.message : String(error)}`);
+      return false;
     }
     if (message) setNotice(message);
+    return true;
   };
   const saveSettings = (next: UiSettings) => { setUiSettings(next); localStorage.setItem('moraxterm-settings', JSON.stringify(next)); setPanel(undefined); };
   const playMacro = (macro: Macro, terminalId: string) => { macro.events.reduce((chain, data) => chain.then(() => tauriInvoke?.('write_terminal', { id: terminalId, data })), Promise.resolve()).catch(() => {}); };
@@ -282,7 +297,7 @@ export default function App() {
     <div className="react-menu-row"><span className="react-brand"><span className="logo" aria-hidden="true" dangerouslySetInnerHTML={{ __html: logoSvg }} />Moraxterm</span><button onClick={() => showNotice('Use Session or Start local terminal to open a terminal.')}>Terminal</button><button onClick={() => { setTabs([]); setPanel(undefined); }}>Sessions</button><button onClick={openView}>View</button><button onClick={openXserver}>X server</button><button onClick={openTools}>Tools</button><button onClick={() => setPanel('settings')}>Settings</button><button onClick={() => setPanel('macros')}>Macros</button><button onClick={openHelp}>Help</button></div>
     <Toolbar multiExec={multiExec} split={Boolean(split)} onNewShell={() => openSession({ name: 'Local Shell', session_type: 'Unix', host: '', username: '', port: 0, unix_shell: 'fish' })} onHome={() => { setActiveId(undefined); setEditorSession(undefined); setPanel(undefined); }} onEdit={() => { if (active) setEditorSession(active.session); else if (sessions[0]) setEditorSession(sessions[0]); }} onSettings={() => setPanel('settings')} onMacros={() => setPanel('macros')} onMultiExec={openMultiExec} onSftp={() => setPanel('sftp')} onSplit={splitWorkspace} onDuplicate={duplicateActive} onTools={openTools} onView={openView} onTunnel={openTunnel} onHelp={openHelp} onXserver={openXserver} />
     {notice && <div className="react-action-notice" role="status">{notice}<button aria-label="Dismiss notice" onClick={() => setNotice(undefined)}>×</button></div>}
-    <main className="react-main"><nav className="react-rail"><button className={!active ? 'active' : ''} style={{ '--c': toolColor('home') } as React.CSSProperties} onClick={() => { setActiveId(undefined); setPanel(undefined); }} title="Home"><Tile icon="home" /></button><button style={{ '--c': toolColor('tools') } as React.CSSProperties} onClick={openTools} title="Tools"><Tile icon="tools" /></button><button style={{ '--c': toolColor('tunnel') } as React.CSSProperties} onClick={openTunnel} title="Tunneling"><Tile icon="tunnel" /></button><button style={{ '--c': toolColor('view') } as React.CSSProperties} onClick={openView} title="View"><Tile icon="view" /></button></nav><SessionSidebar sessions={sessions} folders={folders} activeId={active?.session.name} onOpen={openSession} onHome={() => setActiveId(undefined)} onEdit={setEditorSession} onTools={openTools} onMacros={() => setPanel('macros')} onApply={applyFolderChange} />
+    <main className="react-main"><nav className="react-rail"><button className={!active ? 'active' : ''} style={{ '--c': toolColor('home') } as React.CSSProperties} onClick={() => { setActiveId(undefined); setPanel(undefined); }} title="Home"><Tile icon="home" /></button><button style={{ '--c': toolColor('tools') } as React.CSSProperties} onClick={openTools} title="Tools"><Tile icon="tools" /></button><button style={{ '--c': toolColor('tunnel') } as React.CSSProperties} onClick={openTunnel} title="Tunneling"><Tile icon="tunnel" /></button><button style={{ '--c': toolColor('view') } as React.CSSProperties} onClick={openView} title="View"><Tile icon="view" /></button></nav><SessionSidebar sessions={sessions} folders={folders} activeId={active?.session.name} onOpen={openSession} onHome={() => setActiveId(undefined)} onEdit={setEditorSession} onTools={openTools} onMacros={() => setPanel('macros')} onApply={applyChange} />
       <section className="react-workspace">
         {multiExec && <div className="react-multiexec-active" role="status">
           <strong>MultiExec mode is active:</strong> input typed in any terminal is sent to every other terminal that is not excluded.

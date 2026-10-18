@@ -1,9 +1,9 @@
-"""Tiny CDP driver for the Moraxterm WebView2 window (port 9333).
+"""Tiny CDP driver for the Moraxterm WebView2 window (port 9333, or MORAXTERM_UI_PORT).
 Usage as a module: from cdp import App; app = App(); app.eval("document.title")
 """
-import asyncio, json, urllib.request, websockets
+import asyncio, json, os, urllib.request, websockets
 
-PORT = 9333
+PORT = int(os.environ.get("MORAXTERM_UI_PORT") or 9333)
 
 def page_ws():
     pages = json.load(urllib.request.urlopen(f"http://127.0.0.1:{PORT}/json"))

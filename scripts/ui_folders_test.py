@@ -5,16 +5,16 @@ Run: python scripts/ui_folders_test.py [path-to-exe]
 import json, os, shutil, subprocess, sys, tempfile, time, base64
 sys.path.insert(0, os.path.dirname(__file__))
 import cdp_driver as d
+import ui_guard
 
 EXE = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else "tauri-ui/src-tauri/target/release/moraxterm-linux-ui.exe")
-PROFILE = os.path.join(tempfile.gettempdir(), "moraxterm-ui-test")
+PROFILE = ui_guard.PROFILE
 SHOTS = os.environ.get("SHOTS", os.path.join(tempfile.gettempdir(), "mx-shots"))
 os.makedirs(SHOTS, exist_ok=True)
 res = {}
 
 def launch():
-    env = dict(os.environ, APPDATA=PROFILE + "\\appdata", LOCALAPPDATA=PROFILE + "\\local", MORAXTERM_DATA_DIR=PROFILE + "\\data", WEBVIEW2_USER_DATA_FOLDER=PROFILE + "\\webview",
-               WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS="--remote-debugging-port=9333")
+    env = ui_guard.app_env()
     p = subprocess.Popen([EXE], env=env, creationflags=0x00000008 | 0x00000200)
     for _ in range(60):
         try:
@@ -24,8 +24,7 @@ def launch():
     raise SystemExit("app did not start")
 
 def stop():
-    subprocess.run(["powershell.exe", "-NoProfile", "-Command", "Get-Process moraxterm-linux-ui -ErrorAction SilentlyContinue | Stop-Process -Force"], capture_output=True)
-    time.sleep(1.5)
+    ui_guard.stop_exe(EXE)
 
 def run(a, code):
     return a.eval(code)
@@ -85,6 +84,7 @@ def db_sessions(a):
 def ssh(name, folder=""):
     return {"name": name, "session_type": "SSH", "host": name + ".invalid", "username": "u", "port": 22, "folder": folder}
 
+ui_guard.require_free_port()
 stop()
 shutil.rmtree(PROFILE, ignore_errors=True)
 p, a = launch(); time.sleep(5)

@@ -4,7 +4,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from cdp_driver import App
 
 a = App()
-T = os.path.join(tempfile.gettempdir(), "moraxterm-ui-test") + os.sep
+import ui_guard
+T = ui_guard.PROFILE + os.sep
 res = {}
 
 def js(expr): return a.eval(expr)

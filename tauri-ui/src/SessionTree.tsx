@@ -4,7 +4,8 @@ import {
   allFolders, buildRows, createFolder, deleteFolder, isInside, leafOf, moveFolder, moveSession,
   normalizePath, parentOf, renameFolder, sessionKey,
 } from './folders.js';
-import type { FolderChange } from './folders.js';
+import { duplicateSession, removeSession, toggleFavorite } from './sessionOps.js';
+import type { Change } from './sessionOps.js';
 import type { Session } from './react-types';
 
 type Drag = { type: 'session' | 'folder'; id: string };
@@ -39,7 +40,7 @@ function NameInput({ initial, depth, label, onSubmit, onCancel }: { initial: str
 export default function SessionTree({ sessions, folders, query, activeName, onOpen, onEditActive, onRefresh, onApply, onEdit }: {
   sessions: Session[]; folders: string[]; query: string; activeName?: string;
   onOpen: (session: Session) => void; onEditActive: () => void; onRefresh: () => void; onEdit: (session: Session) => void;
-  onApply: (result: FolderChange, message?: string) => void;
+  onApply: (result: Change, message?: string) => unknown;
 }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(readCollapsed);
   const [selected, setSelected] = useState('');
@@ -49,6 +50,8 @@ export default function SessionTree({ sessions, folders, query, activeName, onOp
   const [over, setOver] = useState<{ target: string; ok: boolean } | null>(null);
   const drag = useRef<Drag | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const [confirm, setConfirm] = useState<Session | null>(null);
+  useEffect(() => { if (!menu) setConfirm(null); }, [menu]);
 
   const rows = useMemo(() => buildRows({ sessions, folders, collapsed, query }), [sessions, folders, collapsed, query]);
   const everyFolder = useMemo(() => allFolders(sessions, folders).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })), [sessions, folders]);
@@ -121,10 +124,16 @@ export default function SessionTree({ sessions, folders, query, activeName, onOp
     onApply(result, `Deleted folder ${path}. ${result.moved ? `${result.moved} session${result.moved === 1 ? '' : 's'} moved to ${result.parent || 'the top level'}.` : 'It was empty.'}`);
     if (isInside(selected, path)) setSelected(parentOf(path));
   };
+  const sessionAction = (action: 'duplicate' | 'favorite', session: Session) => {
+    setMenu(null);
+    const key = sessionKey(session);
+    if (action === 'duplicate') { const result = duplicateSession(sessions, key); onApply(result, `Created ${result.duplicated}.`); }
+    else { const result = toggleFavorite(sessions, key); onApply(result, result.favorite ? `Added ${session.name} to favorites.` : `Removed ${session.name} from favorites.`); }
+  };
   const newFolder = (parent: string) => { setMenu(null); if (parent) toggle(parent, true); setEditing({ mode: 'new', parent }); };
   const openMenu = (event: React.MouseEvent, value: MenuTarget) => {
     event.preventDefault(); event.stopPropagation();
-    setMenu({ ...value, x: Math.min(event.clientX, window.innerWidth - 250), y: Math.min(event.clientY, window.innerHeight - 330) });
+    setMenu({ ...value, x: Math.min(event.clientX, window.innerWidth - 250), y: Math.min(event.clientY, window.innerHeight - 430) });
   };
 
   const folderRow = (row: Extract<ReturnType<typeof buildRows>[number], { kind: 'folder' }>) => {
@@ -184,9 +193,16 @@ export default function SessionTree({ sessions, folders, query, activeName, onOp
         <button role="menuitem" className="danger" onClick={() => { setMenu(null); removeFolder(menu.path); }}>Delete folder (keeps its sessions)</button>
         <div className="sep">Move folder to</div>
         <div className="list">{targets(menu.path, parentOf(menu.path)).map(item => <button role="menuitem" key={item.path || 'top'} style={{ paddingLeft: 12 + item.depth * 12 }} onClick={() => { setMenu(null); doMove({ type: 'folder', id: (menu as { path: string }).path }, item.path); }}>{item.label}</button>)}</div>
+      </> : confirm ? <>
+        <div className="confirm-text">Delete “{confirm.name}”?<small>It is removed from your saved sessions. Open tabs stay open.</small></div>
+        <button role="menuitem" className="danger" onClick={() => { const session = confirm; setMenu(null); onApply(removeSession(sessions, sessionKey(session)), `Deleted session ${session.name}.`); }}>Delete session</button>
+        <button role="menuitem" onClick={() => setMenu(null)}>Cancel</button>
       </> : <>
         <button role="menuitem" onClick={() => { const session = (menu as { session: Session }).session; setMenu(null); onOpen(session); }}>Open</button>
         <button role="menuitem" onClick={() => { const session = (menu as { session: Session }).session; setMenu(null); onEdit(session); }}>Edit</button>
+        <button role="menuitem" onClick={() => sessionAction('duplicate', (menu as { session: Session }).session)}>Duplicate</button>
+        <button role="menuitem" onClick={() => sessionAction('favorite', (menu as { session: Session }).session)}>{(menu as { session: Session }).session.favorite ? 'Remove from favorites' : 'Add to favorites'}</button>
+        <button role="menuitem" className="danger" onClick={() => setConfirm((menu as { session: Session }).session)}>Delete…</button>
         <div className="sep">Move to</div>
         <div className="list">{targets(undefined, normalizePath(menu.session.folder || '')).map(item => <button role="menuitem" key={item.path || 'top'} style={{ paddingLeft: 12 + item.depth * 12 }} onClick={() => { const key = sessionKey((menu as { session: Session }).session); setMenu(null); doMove({ type: 'session', id: key }, item.path); }}>{item.label}</button>)}</div>
       </>}
