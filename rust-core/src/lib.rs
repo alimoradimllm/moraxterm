@@ -228,6 +228,14 @@ fn default_keepalive_seconds() -> u16 {
     30
 }
 
+/// Rejects a host or user name that a command-line client could mistake for an option, or that is not a single token.
+pub fn check_target(what: &'static str, value: &str) -> Result<(), ValidationError> {
+    if value.starts_with('-') || value.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return Err(ValidationError::UnsafeTarget(what));
+    }
+    Ok(())
+}
+
 impl Session {
     pub fn ssh(
         name: impl Into<String>,
@@ -260,6 +268,9 @@ impl Session {
         if self.port == 0 {
             return Err(ValidationError::InvalidPort);
         }
+        // A value that starts with '-' is read by ssh as an option (for example -oProxyCommand=...), which runs a local command.
+        check_target("host", self.host.trim())?;
+        check_target("username", self.username.trim())?;
         let mut argv = vec!["ssh".into(), "-p".into(), self.port.to_string().into()];
         if !self.proxy_jump.trim().is_empty() {
             argv.extend(["-J".into(), self.proxy_jump.trim().to_string()]);
@@ -281,7 +292,9 @@ impl Session {
         if self.ssh_agent_forwarding {
             argv.extend(["-o".into(), "ForwardAgent=yes".into()]);
         }
-        argv.push(format!("{}@{}", self.username, self.host));
+        // `--` ends option parsing, so the destination can never be taken for an option even if the checks above change.
+        argv.push("--".into());
+        argv.push(format!("{}@{}", self.username.trim(), self.host.trim()));
         match self.remote_shell.trim().to_ascii_lowercase().as_str() {
             "fish" => argv.extend(["fish".into(), "-l".into()]),
             "fish-or-sh" | "fish-fallback" => argv.extend([
@@ -335,6 +348,8 @@ pub enum ValidationError {
     EmptyUsername,
     InvalidPort,
     InvalidRemoteShell,
+    /// A host or user name that the ssh client could read as an option, or that contains whitespace or control characters.
+    UnsafeTarget(&'static str),
 }
 
 impl fmt::Display for ValidationError {
@@ -343,6 +358,10 @@ impl fmt::Display for ValidationError {
             Self::EmptyHost => write!(f, "host cannot be empty"),
             Self::EmptyUsername => write!(f, "username cannot be empty"),
             Self::InvalidPort => write!(f, "port must be non-zero"),
+            Self::UnsafeTarget(what) => write!(
+                f,
+                "the {what} must not start with '-' or contain spaces or control characters"
+            ),
             Self::InvalidRemoteShell => write!(
                 f,
                 "remote shell must be fish, fish-or-sh, bash, zsh, sh, or server default"
