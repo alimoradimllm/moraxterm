@@ -1060,6 +1060,14 @@ fn ssh_known_hosts_add(
     Ok("host key added after fingerprint confirmation".into())
 }
 
+/// Test hook: when `MORAXTERM_TEST_SSH_CONFIG` names a file, SSH terminals read that ssh config instead of the user's
+/// `~/.ssh/config`, so disposable-server tests never depend on or modify the real `~/.ssh`. Unset (the normal case) it does nothing.
+fn apply_test_ssh_config(args: &mut Vec<String>, config: Option<String>) {
+    if let Some(path) = config.filter(|value| !value.trim().is_empty()) {
+        args.splice(0..0, ["-F".to_string(), path]);
+    }
+}
+
 /// Builds the structured `sftp -b -` batch invocation shared by the SFTP commands.
 /// Test builds may point `MORAXTERM_TEST_SSH_CONFIG` at a throwaway ssh config so
 /// disposable-server tests never read or write the user's real `~/.ssh`.
@@ -1844,6 +1852,10 @@ fn start_terminal(
             ssh_args.remove(0);
         }
         ssh_args.insert(0, "-X".into());
+        apply_test_ssh_config(
+            &mut ssh_args,
+            std::env::var("MORAXTERM_TEST_SSH_CONFIG").ok(),
+        );
         ("ssh".into(), ssh_args)
     } else if let Some(session) = session
         .as_ref()
@@ -2462,11 +2474,26 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::sftp_batch_command;
+    use super::{apply_test_ssh_config, sftp_batch_command};
     use super::{
         embedded_fish_command_not_found_script, format_socket_address, scan_ports,
         take_startup_cursor_query, EMBEDDED_DIG_WRAPPER, EMBEDDED_RUNTIME_ARCHIVE,
     };
+
+    #[test]
+    fn test_ssh_config_hook_adds_f_first_and_is_inert_when_unset() {
+        let base = vec!["-X".to_string(), "-p".to_string(), "22".to_string()];
+        let mut unset = base.clone();
+        apply_test_ssh_config(&mut unset, None);
+        assert_eq!(unset, base);
+        let mut blank = base.clone();
+        apply_test_ssh_config(&mut blank, Some("  ".into()));
+        assert_eq!(blank, base);
+        let mut set = base.clone();
+        apply_test_ssh_config(&mut set, Some("C:/t/ssh_config".into()));
+        assert_eq!(&set[..2], ["-F", "C:/t/ssh_config"]);
+        assert_eq!(&set[2..], &base[..]);
+    }
 
     #[test]
     fn sftp_destination_is_always_behind_a_double_dash() {
