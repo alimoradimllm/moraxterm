@@ -82,6 +82,11 @@ jobs:
           timeout 1200 cargo test --manifest-path tauri-ui/src-tauri/Cargo.toml 2>&1 | tail -40
           echo "::endgroup::"
 
+      - name: Remove packages restored from the cache
+        # The cache holds the whole target/ folder, including target/release/bundle from earlier versions. Without this,
+        # a version bump leaves two .deb files and every step below that globs *.deb fails or checks the wrong one.
+        run: rm -rf tauri-ui/src-tauri/target/release/bundle
+
       - name: Build .deb and .rpm
         working-directory: tauri-ui
         run: npm run tauri -- build --bundles deb,rpm
