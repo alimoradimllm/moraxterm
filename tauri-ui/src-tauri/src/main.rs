@@ -112,35 +112,145 @@ fn credential_status(service: String, account: String) -> Result<bool, String> {
     }
 }
 
+/// What `ssh-add -l` told us about the agent.
+#[derive(Debug, PartialEq)]
+enum AgentState {
+    Keys(usize),
+    NoKeys,
+    NotRunning,
+    Unreadable,
+    Failed(String),
+}
+
+/// Classifies the output of `ssh-add -l` from both streams, because different builds print the same fact to different places
+/// (the MSYS build prints "The agent has no identities." to stdout, the Windows build prints connection errors to stderr).
+fn classify_agent_output(code: Option<i32>, stdout: &str, stderr: &str) -> AgentState {
+    let text = format!("{stdout}\n{stderr}").to_lowercase();
+    if code == Some(0) {
+        let keys = stdout
+            .lines()
+            .filter(|line| !line.trim().is_empty() && !line.to_lowercase().starts_with("the agent"))
+            .count();
+        return if keys == 0 {
+            AgentState::NoKeys
+        } else {
+            AgentState::Keys(keys)
+        };
+    }
+    if text.contains("no identities") {
+        return AgentState::NoKeys;
+    }
+    if text.contains("could not open a connection")
+        || text.contains("error connecting to agent")
+        || text.contains("connect to agent")
+        || text.contains("connection refused")
+        || text.contains("no such file or directory")
+    {
+        return AgentState::NotRunning;
+    }
+    if text.contains("invalid format") {
+        return AgentState::Unreadable;
+    }
+    let first = stdout
+        .lines()
+        .chain(stderr.lines())
+        .find(|line| !line.trim().is_empty())
+        .unwrap_or("no output")
+        .trim();
+    AgentState::Failed(first.chars().take(100).collect())
+}
+
+/// The `ssh-add` that sits in the same folder as the `ssh` the terminal will run, found by walking `path` in order. The terminal starts a
+/// bare `ssh`, so the first `ssh` on PATH is the one that talks to an agent; a different build's `ssh-add` may not reach that agent.
+fn ssh_add_beside_ssh(path: &std::ffi::OsStr) -> Option<PathBuf> {
+    let (ssh, add) = if cfg!(windows) {
+        ("ssh.exe", "ssh-add.exe")
+    } else {
+        ("ssh", "ssh-add")
+    };
+    std::env::split_paths(path).find_map(|dir| {
+        if dir.join(ssh).is_file() {
+            let candidate = dir.join(add);
+            candidate.is_file().then_some(candidate)
+        } else {
+            None
+        }
+    })
+}
+
+/// True when `ssh-add` is the Windows OpenSSH one, whose agent is the Windows `ssh-agent` service.
+fn is_windows_openssh(path: &std::path::Path) -> bool {
+    let text = path.to_string_lossy().to_lowercase().replace('/', "\\");
+    text.contains("\\system32\\openssh\\")
+}
+
+/// Windows service facts from `sc query` / `sc qc` text.
+fn service_is_running(query: &str) -> bool {
+    query.to_uppercase().contains("RUNNING")
+}
+
+fn service_is_disabled(config: &str) -> bool {
+    config.to_uppercase().contains("DISABLED")
+}
+
+fn describe_agent(state: &AgentState, windows_service: Option<(bool, bool)>) -> String {
+    match state {
+        AgentState::Keys(1) => "agent available (1 identity)".into(),
+        AgentState::Keys(count) => format!("agent available ({count} identities)"),
+        AgentState::NoKeys => "agent available (no identities)".into(),
+        AgentState::NotRunning => match windows_service {
+            Some((false, true)) => "agent unavailable: the Windows ssh-agent service is disabled. To use it, run in an administrator PowerShell: Set-Service ssh-agent -StartupType Manual; Start-Service ssh-agent".into(),
+            Some((false, false)) => "agent unavailable: the Windows ssh-agent service is stopped. To start it, run in an administrator PowerShell: Start-Service ssh-agent".into(),
+            Some((true, _)) => "agent unavailable: the Windows ssh-agent service is running but this ssh-add cannot reach it".into(),
+            None => "agent unavailable: no ssh-agent is reachable from this ssh-add (start one, or set SSH_AUTH_SOCK)".into(),
+        },
+        AgentState::Unreadable => "agent unavailable: an agent answered in a format this ssh-add cannot read (the ssh and ssh-add builds on PATH come from different OpenSSH distributions)".into(),
+        AgentState::Failed(message) => format!("agent check failed: {message}"),
+    }
+}
+
+/// A helper process that opens no console window (Moraxterm is a GUI program; Windows would create a hidden console per helper).
+fn quiet_command(program: &std::ffi::OsStr) -> Command {
+    #[allow(unused_mut)]
+    let mut command = Command::new(program);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    command
+}
+
 #[tauri::command]
 fn ssh_agent_status() -> Result<String, String> {
-    let output = if cfg!(windows) {
-        Command::new("ssh-add").arg("-l").output()
+    let path = std::env::var_os("PATH").unwrap_or_default();
+    let tool = ssh_add_beside_ssh(&path).unwrap_or_else(|| PathBuf::from("ssh-add"));
+    let output = quiet_command(tool.as_os_str())
+        .arg("-l")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .map_err(|error| format!("ssh-agent check unavailable: {error}"))?;
+    let state = classify_agent_output(
+        output.status.code(),
+        &String::from_utf8_lossy(&output.stdout),
+        &String::from_utf8_lossy(&output.stderr),
+    );
+    let service = if cfg!(windows) && state == AgentState::NotRunning && is_windows_openssh(&tool) {
+        let query = quiet_command(std::ffi::OsStr::new("sc.exe"))
+            .args(["query", "ssh-agent"])
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+            .unwrap_or_default();
+        let config = quiet_command(std::ffi::OsStr::new("sc.exe"))
+            .args(["qc", "ssh-agent"])
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+            .unwrap_or_default();
+        Some((service_is_running(&query), service_is_disabled(&config)))
     } else {
-        Command::new("ssh-add").arg("-l").output()
+        None
     };
-    match output {
-        Ok(result) if result.status.success() => {
-            let count = String::from_utf8_lossy(&result.stdout)
-                .lines()
-                .filter(|line| !line.trim().is_empty())
-                .count();
-            Ok(format!("agent available ({count} identities)"))
-        }
-        Ok(result) => {
-            let message = String::from_utf8_lossy(&result.stderr).to_lowercase();
-            if message.contains("no identities") {
-                Ok("agent available (no identities)".into())
-            } else if message.contains("could not open a connection")
-                || message.contains("connect to agent")
-            {
-                Ok("agent unavailable".into())
-            } else {
-                Ok("agent check failed".into())
-            }
-        }
-        Err(error) => Err(format!("ssh-agent check unavailable: {error}")),
-    }
+    Ok(describe_agent(&state, service))
 }
 
 #[tauri::command]
@@ -2611,6 +2721,150 @@ mod tests {
             assert!(super::scan_host_key(host, 22).is_err(), "{host:?}");
         }
         assert!(super::scan_host_key("example.test", 0).is_err());
+    }
+
+    #[test]
+    fn agent_output_is_classified_from_both_streams_using_real_outputs() {
+        use super::{classify_agent_output as c, AgentState::*};
+        // outputs measured on Windows: Git/MSYS build, native Windows build
+        assert_eq!(c(Some(1), "The agent has no identities.\n", ""), NoKeys);
+        assert_eq!(c(Some(1), "", "The agent has no identities.\n"), NoKeys);
+        assert_eq!(
+            c(Some(0), "256 SHA256:abc demo@host (ED25519)\n", ""),
+            Keys(1)
+        );
+        assert_eq!(
+            c(
+                Some(0),
+                "256 SHA256:a x (ED25519)\n3072 SHA256:b y (RSA)\n",
+                ""
+            ),
+            Keys(2)
+        );
+        assert_eq!(
+            c(
+                Some(2),
+                "",
+                "Error connecting to agent: Bad file descriptor\n"
+            ),
+            NotRunning
+        );
+        assert_eq!(
+            c(
+                Some(2),
+                "",
+                "Could not open a connection to your authentication agent.\n"
+            ),
+            NotRunning
+        );
+        assert_eq!(
+            c(
+                Some(1),
+                "",
+                "Error connecting to agent: No such file or directory
+\n"
+            ),
+            NotRunning
+        );
+        assert_eq!(
+            c(Some(1), "", "error fetching identities: invalid format\n"),
+            Unreadable
+        );
+        assert_eq!(
+            c(Some(1), "", "something unexpected happened\n"),
+            Failed("something unexpected happened".into())
+        );
+        assert_eq!(c(Some(1), "", ""), Failed("no output".into()));
+    }
+
+    #[test]
+    fn agent_status_text_says_what_to_do_and_keeps_the_old_wording() {
+        use super::{describe_agent as d, AgentState::*};
+        assert_eq!(d(&Keys(3), None), "agent available (3 identities)");
+        assert_eq!(d(&Keys(1), None), "agent available (1 identity)");
+        assert_eq!(d(&NoKeys, None), "agent available (no identities)");
+        let disabled = d(&NotRunning, Some((false, true)));
+        assert!(
+            disabled.contains("disabled")
+                && disabled.contains("Set-Service ssh-agent -StartupType Manual")
+                && disabled.contains("administrator"),
+            "{disabled}"
+        );
+        let stopped = d(&NotRunning, Some((false, false)));
+        assert!(
+            stopped.contains("stopped") && stopped.contains("Start-Service ssh-agent"),
+            "{stopped}"
+        );
+        assert!(d(&NotRunning, Some((true, false))).contains("running but"));
+        assert!(d(&NotRunning, None).starts_with("agent unavailable"));
+        assert!(d(&Unreadable, None).contains("different OpenSSH"));
+        assert!(d(&Failed("boom".into()), None).ends_with("boom"));
+    }
+
+    #[test]
+    fn windows_service_text_is_read_correctly() {
+        use super::{service_is_disabled, service_is_running};
+        assert!(!service_is_running(
+            "SERVICE_NAME: ssh-agent\n        STATE              : 1  STOPPED \n"
+        ));
+        assert!(service_is_running(
+            "        STATE              : 4  RUNNING \n"
+        ));
+        assert!(service_is_disabled(
+            "        START_TYPE         : 4   DISABLED\n"
+        ));
+        assert!(!service_is_disabled(
+            "        START_TYPE         : 3   DEMAND_START\n"
+        ));
+    }
+
+    #[test]
+    fn ssh_add_is_taken_from_the_folder_of_the_first_ssh_on_path() {
+        use super::{is_windows_openssh, ssh_add_beside_ssh};
+        let (ssh, add) = if cfg!(windows) {
+            ("ssh.exe", "ssh-add.exe")
+        } else {
+            ("ssh", "ssh-add")
+        };
+        let root = std::env::temp_dir().join(format!("mx-agent-path-{}", std::process::id()));
+        let (first, second, lonely) =
+            (root.join("first"), root.join("second"), root.join("lonely"));
+        for dir in [&first, &second, &lonely] {
+            std::fs::create_dir_all(dir).unwrap();
+        }
+        for name in [ssh, add] {
+            std::fs::write(first.join(name), b"").unwrap();
+            std::fs::write(second.join(name), b"").unwrap();
+        }
+        std::fs::write(lonely.join(add), b"").unwrap(); // an ssh-add with no ssh beside it must not be chosen
+        let join = |dirs: &[&std::path::PathBuf]| {
+            std::env::join_paths(dirs.iter().map(|d| d.as_path())).unwrap()
+        };
+        assert_eq!(
+            ssh_add_beside_ssh(&join(&[&first, &second])),
+            Some(first.join(add))
+        );
+        assert_eq!(
+            ssh_add_beside_ssh(&join(&[&second, &first])),
+            Some(second.join(add))
+        );
+        assert_eq!(
+            ssh_add_beside_ssh(&join(&[&lonely, &second])),
+            Some(second.join(add)),
+            "must skip a folder with ssh-add but no ssh"
+        );
+        assert_eq!(ssh_add_beside_ssh(&join(&[&lonely])), None);
+        assert_eq!(ssh_add_beside_ssh(std::ffi::OsStr::new("")), None);
+        let _ = std::fs::remove_dir_all(&root);
+        assert!(is_windows_openssh(std::path::Path::new(
+            r"C:\Windows\System32\OpenSSH\ssh-add.exe"
+        )));
+        assert!(is_windows_openssh(std::path::Path::new(
+            "c:/windows/system32/openssh/ssh-add.exe"
+        )));
+        assert!(!is_windows_openssh(std::path::Path::new(
+            r"C:\Program Files\Git\usr\bin\ssh-add.exe"
+        )));
     }
 
     #[test]

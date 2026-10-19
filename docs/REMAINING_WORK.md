@@ -131,10 +131,16 @@ Nothing here is claimed as done.
   (`ui_hostkey_test.py`, ed25519 only). Open: RSA/ECDSA-only servers, the first-connection
   prompt under the `ask` policy (left to OpenSSH in the terminal), and the buttons taking
   about 6 s when the Git/MSYS `ssh-keygen` is first on PATH.
-- **SSH-agent status:** `ssh_agent_status` runs whichever `ssh-add` is first on PATH. On this
-  PC that is the Git/MSYS one, while Windows' own ssh-agent service is disabled and stopped,
-  and the native and MSYS `ssh-add` cannot talk to each other's agent (measured). The status
-  can therefore disagree with the agent `ssh.exe` uses. Not fixed.
+- **SSH-agent status:** `ssh_agent_status` now runs the `ssh-add` that sits beside the first
+  `ssh` on PATH (the one the terminal starts), classifies its output, and says whether the
+  agent has keys, has none, is not running, or answered in a format that `ssh-add` cannot read.
+  When the Windows OpenSSH build is in use and its `ssh-agent` service is stopped or disabled,
+  the message names the state and the administrator command to start it. Tested in the built
+  exe against a throwaway MSYS agent (`ui_agent_status_test.py`, 7/7 twice) and the real
+  disabled Windows service. Open: the Windows ssh-agent service itself was never started
+  here (needs administrator rights), so "Windows agent with keys" is unit-tested only; the app
+  cannot start or choose an agent, and the Settings UI has no agent selector; SSH logins
+  *using* an agent were not run.
 - **Styling:** `tauri-ui/src/style.css` belongs to the legacy `main.js` only; the React UI (`main.tsx`) imports `react-ui.css` alone, and none of `style.css`'s rules are in the built CSS. Kept until the legacy JavaScript is removed after parity.
 - **README:** real screenshots are in `docs/screenshots/` (dark and light, demo data only). The Persian page has had no native-speaker review.
 - **Release:** 0.1.25 installers (MSI and NSIS, unsigned) were built (#30); no install,
@@ -165,7 +171,7 @@ Nothing here is claimed as done.
 - Host-key scan, fingerprint confirmation, approval, removal and the changed-key refusal work and are tested in the built exe (#34). A prompt of the app's own at first connection is not built: under the `ask` policy OpenSSH asks inside the terminal.
 - Connect Linux Secret Service and Windows Credential Manager adapters.
 - Add password prompts that never persist or place values in command arguments.
-- Add SSH-agent selection and a status that matches the agent `ssh.exe` really uses (see Known gaps).
+- SSH-agent status now follows the `ssh` the terminal runs and explains an unavailable agent (see Known gaps). Selecting an agent, starting one from the app, and an SSH login through an agent are still open.
 - ProxyJump/gateway fields exist in the session editor.
 - Add connection state, retry, latency, and clear failure messages.
 
