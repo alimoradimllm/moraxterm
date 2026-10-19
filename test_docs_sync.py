@@ -14,7 +14,7 @@ sys.path.insert(0, str(SCRIPTS))
 import docs_sync  # noqa: E402
 import sync  # noqa: E402
 
-GOOD = "# Fix the thing\n\nWhat changed and why: the cause was a stale cache, so the lookup now revalidates before use.\n\nVerified: ran the suite, 12 passed.\n\nOpen: nothing else known.\n"
+GOOD = "# Fix the thing\n\nWhat changed and why: the cause was a stale cache, so the lookup now revalidates before use.\n\nVerified: ran the suite, 12 passed.\n\nOpen: nothing else known.\n\nDocs: no status change: internal refactor, no behaviour the status docs describe.\n"
 README = "# Demo\n\n<!-- RECENT-CHANGES:START -->\nold\n<!-- RECENT-CHANGES:END -->\n\ntail\n"
 AGENTS = "# Agents\n\n<!-- CHANGE-INDEX:START -->\nold\n<!-- CHANGE-INDEX:END -->\n\ntail\n"
 
@@ -93,6 +93,37 @@ class Pure(unittest.TestCase):
         self.assertTrue(docs_sync.validate_fragment("# T\n\nshort"))
         self.assertTrue(any("Verified" in p for p in docs_sync.validate_fragment("# A decent title\n" + "x" * 200 + "\nOpen: y")))
         self.assertTrue(any("placeholders" in p for p in docs_sync.validate_fragment(docs_sync.TEMPLATE + "x" * 200)))
+
+    def test_docs_line_is_required(self):
+        without = GOOD.split("\n\nDocs:")[0] + "\n"
+        self.assertTrue(any("Docs:" in p for p in docs_sync.validate_fragment(without)))
+        self.assertTrue(any("Docs:" in p for p in docs_sync.validate_fragment(without + "\nDocs:\n")), "an empty Docs: line must not count")
+        self.assertTrue(any("Docs:" in p for p in docs_sync.validate_fragment(without + "\nsee Docs: elsewhere in the text\n")), "Docs: must start a line")
+
+    def test_template_docs_placeholder_is_rejected(self):
+        filled = docs_sync.TEMPLATE.replace("<one-line title: what changed>", "A real title for the change").replace("<exact commands or runtime checks and their real results>", "x" * 60).replace("<what is still untested, unfinished, or known to be wrong>", "y" * 60)
+        self.assertTrue(any("placeholders" in p for p in docs_sync.validate_fragment(filled)))
+
+    def test_claiming_a_status_update_requires_remaining_work_in_the_change(self):
+        root = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, root, True)
+        (root / "docs" / "changes").mkdir(parents=True)
+        updated = GOOD.replace("Docs: no status change: internal refactor, no behaviour the status docs describe.", "Docs: updated docs/REMAINING_WORK.md and the AGENTS.md known-gaps list.")
+        frag = "docs/changes/2026-10-19-a.md"
+        (root / frag).write_text(updated, encoding="utf-8")
+        liar = docs_sync.check_files(["tauri-ui/src/App.tsx", frag], root)
+        self.assertTrue(any("REMAINING_WORK" in p for p in liar), liar)
+        honest = docs_sync.check_files(["tauri-ui/src/App.tsx", frag, "docs/REMAINING_WORK.md"], root)
+        self.assertEqual(honest, [])
+
+    def test_no_status_change_needs_a_real_reason(self):
+        root = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, root, True)
+        (root / "docs" / "changes").mkdir(parents=True)
+        frag = "docs/changes/2026-10-19-b.md"
+        for line, ok in (("Docs: no status change: internal refactor, behaviour unchanged.", True),
+                         ("Docs: no status change", False), ("Docs: no status change: n/a", False), ("Docs: none", False)):
+            (root / frag).write_text(GOOD.split("\n\nDocs:")[0] + "\n\n" + line + "\n", encoding="utf-8")
+            problems = docs_sync.check_files(["tauri-ui/src/App.tsx", frag], root)
+            self.assertEqual(problems == [], ok, (line, problems))
 
     def test_replace_block_keeps_surroundings_and_requires_markers(self):
         out = docs_sync.replace_block(README, "RECENT-CHANGES", "NEW")
