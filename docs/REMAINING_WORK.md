@@ -1,6 +1,6 @@
 # Moraxterm remaining work and verification status
 
-_Last reviewed: 2026-10-18 (`main` at `357d147`). Repository: `alimoradimllm/moraxterm`. Current release: `v0.1.24`._
+_Last reviewed: 2026-10-19 (`main` at `e094bb1`). Repository: `alimoradimllm/moraxterm`. Current release: `v0.1.24`._
 
 This document separates verified behavior from planned work. It is not a claim
 of full third-party terminal workspace parity.
@@ -101,24 +101,46 @@ of full third-party terminal workspace parity.
 Open items from the colourful-UI, folder, session-action and SSH-hardening work.
 Nothing here is claimed as done.
 
-- **Licences:** the Windows installer bundles MSYS2 Fish, Bash, Wget and inetutils
-  without their GPL licence texts or source pointers (`THIRD_PARTY_NOTICES.md`
-  records the gap). Needs a PR and a legal review.
-- **Themes:** Light is reviewed. Amber and Midnight are rendered but not reviewed in
-  detail. The Light terminal theme with real shell output is unchecked.
+- **Licences:** the GPL/LGPL/MPL licence texts (`LICENSES/`) and a package list with
+  the exact MSYS2 source archive for each of the 101 bundled packages
+  (`docs/EMBEDDED_UNIX_PACKAGES.md`) are in the repository (#29) and, from 0.1.25, in
+  the installer (#30; the NSIS installer was unpacked and checked, not installed).
+  Still open: a written offer of source or hosting the source archives, and a legal
+  review.
+- **Themes:** text contrast is measured in all five themes (`scripts/ui_theme_contrast.py`,
+  no text below 4.5:1 after the Light accent fix, #25). Icon-on-tile contrast, borders and
+  focus rings are judged by eye only; the Light terminal theme with real shell output is
+  unchecked.
 - **Folder tree:** real OS mouse drag is unconfirmed. Empty folders are stored only in
   localStorage. Sessions cannot be ordered manually.
 - **Sessions:** no undo after a confirmed delete. A saved SSH, Telnet or VNC session
   whose user or host starts with `-` or contains whitespace is now refused (PR #23);
   existing sessions have not been checked for this.
-- **Telnet and VNC:** the new host check was added by reading the code; the clients
-  were not run.
-- **SSH launch change (PR #23):** verified with real OpenSSH and unit tests; the built
-  exe was not re-run for it. The SFTP/SCP `--` additions are defence in depth, since
-  injection could not be reproduced there.
+- **Telnet and VNC:** the host check is exercised in the built exe (12/12,
+  `ui_telnet_vnc_test.py`, #28) and the real `telnet` and TigerVNC clients were run against
+  loopback servers in WSL. This Windows PC has neither `telnet.exe` nor a VNC viewer, so a
+  full Telnet or VNC session through the app on Windows is untested.
+- **SSH launch change (#23):** the SSH launch and host checks are covered by the exe test
+  above and unit tests. The SFTP/SCP `--` additions are defence in depth, since injection
+  could not be reproduced there.
+- **SSH tabs (#33):** MultiExec across real SSH tabs passes 19/19 three times against a
+  throwaway sshd (`ui_ssh_multiexec_test.py`). Password and SSH-agent logins and a
+  per-target stop button are untested.
+- **Host-key trust (#34):** the scan, fingerprint, approve, refuse-wrong-fingerprint,
+  changed-key warning and remove-and-reapprove flow passes 19/19 three times
+  (`ui_hostkey_test.py`, ed25519 only). Open: RSA/ECDSA-only servers, the first-connection
+  prompt under the `ask` policy (left to OpenSSH in the terminal), and the buttons taking
+  about 6 s when the Git/MSYS `ssh-keygen` is first on PATH.
+- **SSH-agent status:** `ssh_agent_status` runs whichever `ssh-add` is first on PATH. On this
+  PC that is the Git/MSYS one, while Windows' own ssh-agent service is disabled and stopped,
+  and the native and MSYS `ssh-add` cannot talk to each other's agent (measured). The status
+  can therefore disagree with the agent `ssh.exe` uses. Not fixed.
 - **Styling:** `tauri-ui/src/style.css` belongs to the legacy `main.js` only; the React UI (`main.tsx`) imports `react-ui.css` alone, and none of `style.css`'s rules are in the built CSS. Kept until the legacy JavaScript is removed after parity.
 - **README:** real screenshots are in `docs/screenshots/` (dark and light, demo data only). The Persian page has had no native-speaker review.
-- **Repository hygiene:** about 19 merged `agent/*` branches remain on GitHub.
+- **Release:** 0.1.25 installers (MSI and NSIS, unsigned) were built (#30); no install,
+  upgrade-over-0.1.24 or clean-machine test was run, and nothing is tagged or published.
+- **Repository hygiene:** about 22 merged `agent/*` branches remain on GitHub; deleting them
+  is waiting for your permission.
 - **UI test runs:** concurrent sessions must use their own `MORAXTERM_UI_PORT`
   (`scripts/ui_guard.py free-port`); two sessions on the default port still collide.
 
@@ -136,13 +158,11 @@ Nothing here is claimed as done.
 
 ### SSH trust and credentials
 
-- Add an explicit host-key prompt before first connection.
-- Read and update `known_hosts` without exposing fingerprints in logs.
-- Warn when a host key changes and require an explicit user decision.
+- Host-key scan, fingerprint confirmation, approval, removal and the changed-key refusal work and are tested in the built exe (#34). A prompt of the app's own at first connection is not built: under the `ask` policy OpenSSH asks inside the terminal.
 - Connect Linux Secret Service and Windows Credential Manager adapters.
 - Add password prompts that never persist or place values in command arguments.
-- Add SSH-agent selection and status.
-- Add ProxyJump/gateway fields to the session editor.
+- Add SSH-agent selection and a status that matches the agent `ssh.exe` really uses (see Known gaps).
+- ProxyJump/gateway fields exist in the session editor.
 - Add connection state, retry, latency, and clear failure messages.
 
 ### SFTP
@@ -171,7 +191,7 @@ Nothing here is claimed as done.
 - Add horizontal panes and draggable pane boundaries. *(Implemented in source; installed-app verification remains open.)*
 - Add tab movement, duplication, and detachment into a separate window. *(Tab movement and duplication implemented; detachment remains open.)*
 - Add close confirmation for active connections. *(Implemented in source; installed-app verification remains open.)*
-- Selective MultiExec targets, per-session output, status, and stop controls. *(Implemented in source; live desktop verification passed for banner, two tabs, exclusion control, and sent status.)*
+- Selective MultiExec targets, per-session output, status, and stop controls. *(Implemented; verified in the built exe for local shells and, since #33, across real SSH tabs: mirroring, per-tab exclusion, a stopped tab skipped, sent status. A per-target stop button is still missing.)*
 - Multiple tunnel profiles and concurrent tunnel status/logs. *(Implemented in source with saved profiles, independent start/stop/delete controls, and per-profile status/log text; disposable-target runtime testing remains open.)*
 - Persist macro libraries with explicit import/export and secure content handling. *(Implemented in source with named local macros, validated JSON import, JSON export, replay, deletion, and bounded storage.)*
 

@@ -11,7 +11,7 @@ This file is the handoff document for any AI agent, coding model, or human contr
 - Native bridge: `tauri-ui/src-tauri/` — Rust/Tauri commands and process management.
 - Shared Rust core: `rust-core/` — sessions, persistence, terminal abstractions, and tests.
 - Documentation: `docs/REMAINING_WORK.md` and `docs/MORAXTERM_COMPATIBILITY_ROADMAP.md`.
-- Latest published release: `v0.1.24`.
+- Latest published release: `v0.1.24`. The version in `main` is `0.1.25` (Windows installers built, not published).
 
 ## How to continue the work
 
@@ -143,15 +143,15 @@ Treat the implementation as real but keep runtime gaps explicit. Verify behavior
 
 Consult `docs/REMAINING_WORK.md` for the full list. Important open areas include:
 
-- Installed-app UI checks are scripted in `scripts/ui_smoke_test.py` (see the change history for how to run them). Still unverified in the app: clipboard paste, mouse reporting, SSH tabs, Linux.
+- Installed-app UI checks are scripted in `scripts/ui_smoke_test.py` (see the change history for how to run them). SSH tabs are now covered by `scripts/ui_ssh_multiexec_test.py` and host-key trust by `scripts/ui_hostkey_test.py` (both need `scripts/disposable_ssh_ui_server.sh` running in WSL). Still unverified in the app: clipboard paste, mouse reporting, Linux.
 - Windows terminal matrix: PTY-level tests now pass for PowerShell, WSL/Bash, Unicode, resize, paste, Ctrl+C, Windows EOF, alternate screen (`vim`, `less`), mouse-reporting enable sequences, and 20000-line output (`rust-core/tests/windows_pty_matrix.rs`). Still open: the same checks in the installed desktop app (xterm.js rendering, keyboard mapping, real paste path), Ctrl+Break, `mc`/`htop`, and a VT conformance run.
 - Authenticated SSH/SFTP testing against a disposable target.
-- Runtime validation of host-key approval/change warnings and SSH-agent authentication.
+- Host-key approval and changed-key refusal are validated in the built exe against a throwaway sshd (ed25519 only; RSA/ECDSA and the `ask`-policy first-connection prompt are not). SSH-agent authentication is not validated, and `ssh_agent_status` can disagree with the agent `ssh.exe` uses (it runs the first `ssh-add` on PATH; Windows' ssh-agent service is separate and often stopped).
 - `scripts/disposable_sftp_runtime_test.sh` passes in Debian WSL (OpenSSH client-level SFTP/SCP/resume/strict-host-key checks against a throwaway loopback sshd); it does not cover the Moraxterm UI or Tauri commands.
 - `scripts/disposable_sftp_commands_test.sh` passes: the real `sftp_list`/`sftp_operation`/`sftp_transfer` bridge functions and the queued transfer core (`begin_sftp_transfer`/`cancel_sftp_job`: put/get, `reput`/`reget` resume, failure reporting, cancel) work against a disposable sshd. Test-only env hooks: `MORAXTERM_TEST_SSH_CONFIG`, `MORAXTERM_TEST_SFTP_LIMIT_KBIT` (compiled under `cfg(test)` only). The SFTP UI, Tauri event delivery to the frontend, and upload-byte progress remain untested.
 - Reliable upload-byte progress remains open. Local browser metadata (type, size, modification epoch), bounded local text editing, remote edit-copy workflow, direct-operation SFTP client preflight, and non-resumable SCP fallback are implemented; disposable-target fallback testing remains open.
 - Detached terminal windows.
-- MultiExec: `sent` means the write was accepted by the PTY, not that the command succeeded. Mirroring was verified only between local PowerShell shells; SSH targets, per-target stop, and mixed-protocol behaviour are untested.
+- MultiExec: `sent` means the write was accepted by the PTY, not that the command succeeded. Mirroring is verified between local PowerShell shells and across three real SSH tabs plus a local shell; per-target stop is missing and password/agent logins are untested.
 - Multiple tunnel profiles/status/logs are implemented in source; disposable-target runtime testing remains open.
 - Macro library persistence/import/export is implemented in source; installed-app file-dialog runtime testing remains open.
 - Local Shell settings persist a selector for system default, cmd, PowerShell, Bash, Fish, Zsh, and Nushell; the Settings UI checks PATH and disables unavailable optional shells. Installed-build verification passed for system default `cmd.exe`; optional-shell runtime checks remain open.
@@ -185,6 +185,7 @@ Keep entries factual and concise. Do not record secrets or temporary personal pa
 ## Change index
 
 <!-- CHANGE-INDEX:START -->
+- 2026-10-19 — [Bring AGENTS.md and REMAINING_WORK.md up to date with the SSH, host-key, licence and release work](docs/changes/2026-10-19-2331-refresh-status-docs-after-ssh-work.md)
 - 2026-10-19 — [Test the host-key trust flow end to end, and fix three bugs it found](docs/changes/2026-10-19-2247-hostkey-trust-runtime-test.md)
 - 2026-10-19 — [Test MultiExec across real SSH tabs against a throwaway sshd, with a test-only ssh config switch](docs/changes/2026-10-19-1738-ssh-tab-multiexec-test.md)
 - 2026-10-19 — [Add real screenshots to both READMEs and correct the note about the old style.css](docs/changes/2026-10-19-1551-readme-screenshot-and-css-note.md)
@@ -224,7 +225,7 @@ Keep entries factual and concise. Do not record secrets or temporary personal pa
 - 2026-10-17 — [Fix SFTP delete and test the bridge commands (09440c8)](docs/changes/2026-10-17-1110-sftp-delete-fix.md)
 - 2026-10-17 — [Disposable SFTP/SCP client test harness (b4f9332)](docs/changes/2026-10-17-1010-sftp-client-harness.md)
 
-_38 change file(s) in [docs/changes/](docs/changes/); this list is generated by `scripts/docs_sync.py`._
+_39 change file(s) in [docs/changes/](docs/changes/); this list is generated by `scripts/docs_sync.py`._
 <!-- CHANGE-INDEX:END -->
 
 ## Change history
