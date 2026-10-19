@@ -139,6 +139,10 @@ Nothing here is claimed as done.
 - **README:** real screenshots are in `docs/screenshots/` (dark and light, demo data only). The Persian page has had no native-speaker review.
 - **Release:** 0.1.25 installers (MSI and NSIS, unsigned) were built (#30); no install,
   upgrade-over-0.1.24 or clean-machine test was run, and nothing is tagged or published.
+- **Documentation rule:** every change file needs a `Docs:` line and a change that claims a
+  status update must include this file (AGENTS.md "Rule for everyone"; enforced by the
+  pre-commit hook and CI). It checks that the line exists and that this file was touched, not
+  that the text is true, and it does not look at the AGENTS.md narrative sections.
 - **Repository hygiene:** about 22 merged `agent/*` branches remain on GitHub; deleting them
   is waiting for your permission.
 - **UI test runs:** concurrent sessions must use their own `MORAXTERM_UI_PORT`

@@ -1,0 +1,13 @@
+# Make "write the change and update the status docs" a rule the tools enforce, and write it in AGENTS.md for everyone
+
+You asked that every change be written in AGENTS.md and that this be a rule for everyone. Every change already got a `docs/changes/` file that feeds the AGENTS.md index, but nothing made anyone update the narrative status text, which is how AGENTS.md and REMAINING_WORK.md went stale (fixed in #35 after you pointed it out). Now:
+
+- AGENTS.md has a section "Rule for everyone: write every change down, and update the status docs in the same change" with six points: a change file for every change, its four labelled parts, what the `Docs:` line must say, that the tools enforce it, update-don't-append, and check for other sessions and use your own worktree before starting.
+- Every change file needs a `Docs:` line (`scripts/docs_sync.py`; the template has it). It names the status docs updated in that same change, or says `Docs: no status change: <a real reason>`. A bare "no status change", a reason that is only a few characters, an empty line, or `Docs:` in the middle of a sentence is rejected.
+- A change whose `Docs:` line claims a status update is rejected unless `docs/REMAINING_WORK.md` is part of the same change. The pre-commit hook and the CI `docs-sync` check both run this.
+
+Verified: `python -m unittest test_docs_sync.Pure` passes, 9 tests, including four new ones (the line is required and must start a line, the template placeholder is rejected, claiming an update without REMAINING_WORK.md in the change is refused and accepted when it is there, and four "no status change" variants). I also tried it for real on this change: with no `Docs:` line `check --staged` exited 1 with the missing-line message, with a `Docs:` claim and no REMAINING_WORK.md it exited 1 with the second message, and with both present the commit goes through. Only new or changed change files are checked, so the 39 existing ones, which predate the line, are untouched.
+
+Open: the check proves the line exists and that REMAINING_WORK.md was touched, not that what you wrote is true or complete; `Docs: no status change: <reason>` can be abused with a plausible-sounding reason. It does not look at the AGENTS.md narrative sections at all, only REMAINING_WORK.md. A change that edits REMAINING_WORK.md for an unrelated reason satisfies it. The rule is not yet followed by the other session's pending host-key work, which will fail the check until it adds a `Docs:` line.
+
+Docs: updated docs/REMAINING_WORK.md (new "Documentation rule" line in the known gaps) and the AGENTS.md rule section.

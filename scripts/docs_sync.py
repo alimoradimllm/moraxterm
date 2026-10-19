@@ -26,6 +26,7 @@ EXEMPT_NAMES = {".gitignore", ".gitattributes"}
 # README shows the 10 newest changes; AGENTS.md lists every change (None = no limit), as the project owner asked.
 TARGETS = {"README.md": ("RECENT-CHANGES", 10), "AGENTS.md": ("CHANGE-INDEX", None)}
 MIN_FRAGMENT_CHARS = 120
+REMAINING_WORK = "docs/REMAINING_WORK.md"
 TEMPLATE = """# <one-line title: what changed>
 
 What changed and why (the cause, not just the symptom).
@@ -33,6 +34,8 @@ What changed and why (the cause, not just the symptom).
 Verified: <exact commands or runtime checks and their real results>
 
 Open: <what is still untested, unfinished, or known to be wrong>
+
+Docs: <which status docs you updated in this same change (docs/REMAINING_WORK.md and the AGENTS.md narrative), or "no status change: <why>">
 """
 
 
@@ -118,9 +121,22 @@ def validate_fragment(text):
     for word in ("verified", "open"):
         if word not in lowered:
             problems.append(f"missing a '{word.capitalize()}:' line")
-    if "<one-line title" in text or "<exact commands" in text or "<what is still" in text:
+    if "<one-line title" in text or "<exact commands" in text or "<what is still" in text or "<which status docs" in text:
         problems.append("template placeholders were not filled in")
+    if docs_line(text) is None:
+        problems.append("missing a 'Docs:' line (say which status docs you updated, or 'no status change: <why>')")
     return problems
+
+
+def docs_line(text):
+    """The text after 'Docs:' at the start of a line, or None when there is no such line or it is empty."""
+    match = re.search(r"^Docs:[ 	]*(.+)$", text, re.MULTILINE)
+    return match.group(1).strip() if match and match.group(1).strip() else None
+
+
+def claims_no_status_change(text):
+    value = (docs_line(text) or "").lower()
+    return value.startswith("no status change") and len(value) >= len("no status change: x") + 8  # a real reason, not just the phrase
 
 
 def check_files(changed, root):
@@ -136,7 +152,12 @@ def check_files(changed, root):
     for frag in frags:
         path = Path(root) / frag
         if path.exists():
-            problems += [f"{frag}: {p}" for p in validate_fragment(path.read_text(encoding="utf-8"))]
+            text = path.read_text(encoding="utf-8")
+            problems += [f"{frag}: {p}" for p in validate_fragment(text)]
+            # A change that says it updated the status docs must actually include the remaining-work file.
+            if docs_line(text) and not claims_no_status_change(text) and REMAINING_WORK not in changed:
+                problems.append(f"{frag}: its Docs: line says status docs were updated, but {REMAINING_WORK} is not part of this change "
+                                f"(update it, or write 'Docs: no status change: <reason>')")
     return problems
 
 
