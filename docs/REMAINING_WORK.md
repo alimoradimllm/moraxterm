@@ -116,8 +116,8 @@ Nothing here is claimed as done.
 - **SSH launch change (PR #23):** verified with real OpenSSH and unit tests; the built
   exe was not re-run for it. The SFTP/SCP `--` additions are defence in depth, since
   injection could not be reproduced there.
-- **Styling:** the old `style.css` is still imported next to `react-ui.css`.
-- **README:** no real screenshot yet. The Persian page has had no native-speaker review.
+- **Styling:** `tauri-ui/src/style.css` belongs to the legacy `main.js` only; the React UI (`main.tsx`) imports `react-ui.css` alone, and none of `style.css`'s rules are in the built CSS. Kept until the legacy JavaScript is removed after parity.
+- **README:** real screenshots are in `docs/screenshots/` (dark and light, demo data only). The Persian page has had no native-speaker review.
 - **Repository hygiene:** about 19 merged `agent/*` branches remain on GitHub.
 - **UI test runs:** concurrent sessions must use their own `MORAXTERM_UI_PORT`
   (`scripts/ui_guard.py free-port`); two sessions on the default port still collide.
