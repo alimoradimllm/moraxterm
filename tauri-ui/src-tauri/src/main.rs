@@ -908,15 +908,36 @@ fn sftp_preview(
     String::from_utf8(data).map_err(|_| "remote preview supports UTF-8 text files only".into())
 }
 
+/// The known_hosts file the host-key commands read and write: the user's `~/.ssh/known_hosts`, unless the test hook
+/// `MORAXTERM_TEST_KNOWN_HOSTS` names another file (so disposable-server tests never touch the real one). Unset, it does nothing.
+fn known_hosts_path() -> Result<PathBuf, String> {
+    if let Some(path) = std::env::var("MORAXTERM_TEST_KNOWN_HOSTS")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+    {
+        return Ok(PathBuf::from(path));
+    }
+    Ok(dirs::home_dir()
+        .ok_or("home directory unavailable")?
+        .join(".ssh")
+        .join("known_hosts"))
+}
+
+/// How OpenSSH names a host in known_hosts: the bare name on port 22, `[host]:port` otherwise.
+fn known_hosts_key(host: &str, port: u16) -> String {
+    if port == 22 {
+        host.trim().to_string()
+    } else {
+        format!("[{}]:{}", host.trim(), port)
+    }
+}
+
 #[tauri::command]
 fn ssh_known_hosts_status(host: String, port: u16) -> Result<String, String> {
     if host.trim().is_empty() || port == 0 {
         return Err("host and port are required".into());
     }
-    let path = dirs::home_dir()
-        .ok_or("home directory unavailable")?
-        .join(".ssh")
-        .join("known_hosts");
+    let path = known_hosts_path()?;
     if !path.exists() {
         return Ok(format!(
             "known_hosts={} entry_present=false",
@@ -928,7 +949,12 @@ fn ssh_known_hosts_status(host: String, port: u16) -> Result<String, String> {
     } else {
         "ssh-keygen"
     })
-    .args(["-F", host.trim(), "-f", path.to_string_lossy().as_ref()])
+    .args([
+        "-F",
+        &known_hosts_key(&host, port),
+        "-f",
+        path.to_string_lossy().as_ref(),
+    ])
     .output()
     .map_err(|e| format!("cannot run ssh-keygen: {e}"))?;
     Ok(format!(
@@ -943,18 +969,11 @@ fn ssh_known_hosts_remove(host: String, port: u16) -> Result<String, String> {
     if host.trim().is_empty() || port == 0 {
         return Err("host and port are required".into());
     }
-    let path = dirs::home_dir()
-        .ok_or("home directory unavailable")?
-        .join(".ssh")
-        .join("known_hosts");
+    let path = known_hosts_path()?;
     if !path.exists() {
         return Ok("known_hosts entry absent".into());
     }
-    let key = if port == 22 {
-        host.trim().to_string()
-    } else {
-        format!("[{}]:{}", host.trim(), port)
-    };
+    let key = known_hosts_key(&host, port);
     let output = std::process::Command::new(if cfg!(windows) {
         "ssh-keygen.exe"
     } else {
@@ -977,14 +996,89 @@ fn scan_host_key(host: &str, port: u16) -> Result<std::process::Output, String> 
     {
         return Err("invalid host or port".into());
     }
-    std::process::Command::new(if cfg!(windows) {
+    moraxterm_core::check_target("host", host).map_err(|e| e.to_string())?;
+    let scan = std::process::Command::new(if cfg!(windows) {
         "ssh-keyscan.exe"
     } else {
         "ssh-keyscan"
     })
     .args(["-T", "8", "-p", &port.to_string(), "--", host])
     .output()
-    .map_err(|e| format!("cannot run ssh-keyscan: {e}"))
+    .map_err(|e| format!("cannot run ssh-keyscan: {e}"))?;
+    if scan.status.success() && !scan.stdout.is_empty() {
+        return Ok(scan);
+    }
+    // ssh-keyscan can fail where ssh itself works: the Windows build of ssh-keyscan lacks key-exchange methods that current servers
+    // offer first (for example sntrup761x25519), so it reports nothing. Ask ssh to record the key instead, into a private temporary
+    // known_hosts file; the key is only shown to the user, and is added to the real file only after they confirm its fingerprint.
+    match scan_host_key_with_ssh(host, port) {
+        Ok(output) => Ok(output),
+        Err(_) => Ok(scan),
+    }
+}
+
+/// Fetches a server's host key by connecting with `ssh` against a throwaway known_hosts file that is deleted afterwards.
+/// No authentication is attempted and nothing is sent beyond the key exchange.
+fn scan_host_key_with_ssh(host: &str, port: u16) -> Result<std::process::Output, String> {
+    let directory = std::env::temp_dir().join(format!(
+        "moraxterm-hostkey-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0)
+    ));
+    fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
+    let known = directory.join("known_hosts");
+    let result = (|| {
+        fs::write(&known, b"").map_err(|e| e.to_string())?;
+        let status = std::process::Command::new(if cfg!(windows) { "ssh.exe" } else { "ssh" })
+            .args([
+                "-F",
+                if cfg!(windows) { "NUL" } else { "/dev/null" },
+                "-o",
+                "BatchMode=yes",
+                "-o",
+                "ConnectTimeout=8",
+                "-o",
+                "StrictHostKeyChecking=accept-new",
+                "-o",
+                "HashKnownHosts=no",
+                "-o",
+                "PreferredAuthentications=none",
+                "-o",
+                "IdentitiesOnly=yes",
+                "-o",
+            ])
+            .arg(format!("UserKnownHostsFile={}", known.display()))
+            .args(["-p", &port.to_string(), "--", host])
+            .stdin(std::process::Stdio::null())
+            .output()
+            .map_err(|e| format!("cannot run ssh: {e}"))?;
+        let recorded = fs::read(&known).map_err(|e| e.to_string())?;
+        if recorded.is_empty() {
+            return Err("ssh did not receive a host key".into());
+        }
+        // known_hosts lines are exactly what ssh-keyscan prints; reuse the Output type so callers need no change.
+        let mut output = status;
+        output.stdout = recorded;
+        output.status = success_status();
+        Ok(output)
+    })();
+    let _ = fs::remove_dir_all(&directory);
+    result
+}
+
+#[cfg(windows)]
+fn success_status() -> std::process::ExitStatus {
+    use std::os::windows::process::ExitStatusExt;
+    std::process::ExitStatus::from_raw(0)
+}
+
+#[cfg(not(windows))]
+fn success_status() -> std::process::ExitStatus {
+    use std::os::unix::process::ExitStatusExt;
+    std::process::ExitStatus::from_raw(0)
 }
 
 #[tauri::command]
@@ -1044,10 +1138,7 @@ fn ssh_known_hosts_add(
     {
         return Err("host-key fingerprint changed or confirmation did not match".into());
     }
-    let path = dirs::home_dir()
-        .ok_or("home directory unavailable")?
-        .join(".ssh")
-        .join("known_hosts");
+    let path = known_hosts_path()?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
@@ -2474,11 +2565,61 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_test_ssh_config, sftp_batch_command};
+    use super::{apply_test_ssh_config, known_hosts_key, sftp_batch_command};
     use super::{
         embedded_fish_command_not_found_script, format_socket_address, scan_ports,
         take_startup_cursor_query, EMBEDDED_DIG_WRAPPER, EMBEDDED_RUNTIME_ARCHIVE,
     };
+
+    #[test]
+    fn host_key_scan_through_ssh_uses_a_private_file_and_cleans_up() {
+        // A closed loopback port: ssh cannot get a key, so the fallback must fail cleanly and leave no temp folder behind.
+        let before: usize = std::fs::read_dir(std::env::temp_dir())
+            .map(|entries| {
+                entries
+                    .flatten()
+                    .filter(|e| {
+                        e.file_name()
+                            .to_string_lossy()
+                            .starts_with("moraxterm-hostkey-")
+                    })
+                    .count()
+            })
+            .unwrap_or(0);
+        assert!(super::scan_host_key_with_ssh("127.0.0.1", 1).is_err());
+        let after: usize = std::fs::read_dir(std::env::temp_dir())
+            .map(|entries| {
+                entries
+                    .flatten()
+                    .filter(|e| {
+                        e.file_name()
+                            .to_string_lossy()
+                            .starts_with("moraxterm-hostkey-")
+                    })
+                    .count()
+            })
+            .unwrap_or(0);
+        assert_eq!(
+            before, after,
+            "the scan left a temporary known_hosts folder behind"
+        );
+    }
+
+    #[test]
+    fn host_key_scan_refuses_option_like_and_spaced_hosts() {
+        for host in ["-oProxyCommand=calc", "-p", "a b", ""] {
+            assert!(super::scan_host_key(host, 22).is_err(), "{host:?}");
+        }
+        assert!(super::scan_host_key("example.test", 0).is_err());
+    }
+
+    #[test]
+    fn known_hosts_names_follow_openssh_for_default_and_other_ports() {
+        assert_eq!(known_hosts_key("example.test", 22), "example.test");
+        assert_eq!(known_hosts_key("  example.test ", 22), "example.test");
+        assert_eq!(known_hosts_key("example.test", 2222), "[example.test]:2222");
+        assert_eq!(known_hosts_key("127.0.0.1", 22226), "[127.0.0.1]:22226");
+    }
 
     #[test]
     fn test_ssh_config_hook_adds_f_first_and_is_inert_when_unset() {
