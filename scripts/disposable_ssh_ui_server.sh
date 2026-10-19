@@ -11,16 +11,26 @@
 # which is how a real "host key changed" situation is produced. The ready file is updated with {"rotations": N}.
 set -euo pipefail
 umask 077
-ROOT="$(mktemp -d "${TMPDIR:-/tmp}/moraxterm-ssh-ui.XXXXXX")"
 PORT="${MORAXTERM_TEST_SSH_UI_PORT:-22226}"
 EMPTY="${MORAXTERM_TEST_KNOWN_HOSTS_EMPTY:-0}"
-SSHD_PID=""
 WIN_TEMP="$(wslpath "$(cmd.exe /c 'echo %TEMP%' 2>/dev/null | tr -d '\r')")"
+# The default port keeps the original ready-file name; another port gets its own file, so two servers (two sessions) can run at once and
+# one can never delete the other's file. A second server on a port that is already in use, or with a ready file already present, refuses
+# to start BEFORE it installs its cleanup, so it cannot remove the first server's file or folders.
+if [ "$PORT" = "22226" ]; then READY="$WIN_TEMP/moraxterm-ssh-ui-ready.json"; else READY="$WIN_TEMP/moraxterm-ssh-ui-ready-$PORT.json"; fi
+if (exec 3<>"/dev/tcp/127.0.0.1/$PORT") 2>/dev/null; then
+  echo "REFUSED: port $PORT is already in use (another test server?). Choose MORAXTERM_TEST_SSH_UI_PORT=<free port>." >&2; exit 3
+fi
+if [ -e "$READY" ]; then
+  echo "REFUSED: $READY already exists (a server is running or died without cleaning up). Remove it only if you are sure no server uses it." >&2; exit 3
+fi
+ROOT="$(mktemp -d "${TMPDIR:-/tmp}/moraxterm-ssh-ui.XXXXXX")"
+SSHD_PID=""
 WIN_DIR="$(mktemp -d "$WIN_TEMP/moraxterm-ssh-ui.XXXXXX")"
-READY="$WIN_TEMP/moraxterm-ssh-ui-ready.json"
+OWN_READY=0
 cleanup() {
   [ -n "$SSHD_PID" ] && kill "$SSHD_PID" 2>/dev/null || true
-  rm -f "$READY"
+  [ "$OWN_READY" = "1" ] && rm -f "$READY"   # only a file this server wrote
   rm -rf "$WIN_DIR" "$ROOT"
 }
 trap cleanup EXIT
@@ -45,7 +55,9 @@ KbdInteractiveAuthentication no
 StrictModes no
 PrintMotd no
 LogLevel ERROR
+Subsystem sftp $(ls /usr/lib/openssh/sftp-server /usr/lib/ssh/sftp-server 2>/dev/null | head -1)
 CFG
+mkdir -p "$ROOT/remote"   # files the SFTP tests send land here (inside the temporary folder, removed with it)
 start_sshd() {
   /usr/sbin/sshd -f "$ROOT/srv/sshd_config" -E "$ROOT/srv/log"
   SSHD_PID="$(cat "$ROOT/srv/sshd.pid")"
@@ -65,10 +77,11 @@ Host *
   StrictHostKeyChecking yes
 CFG
 write_ready() {
-  printf '{"config": "%s/ssh_config", "known_hosts": "%s/known_hosts", "port": %s, "user": "%s", "dir": "%s", "rotations": %s}\n' \
-    "$NATIVE" "$NATIVE" "$PORT" "$(id -un)" "$NATIVE" "$1" > "$READY"
+  printf '{"config": "%s/ssh_config", "known_hosts": "%s/known_hosts", "port": %s, "user": "%s", "dir": "%s", "remote_dir": "%s", "rotations": %s}\n' \
+    "$NATIVE" "$NATIVE" "$PORT" "$(id -un)" "$NATIVE" "$ROOT/remote" "$1" > "$READY"
 }
 ROTATIONS=0
+OWN_READY=1
 write_ready 0
 echo "READY $READY"
 for _ in $(seq 1 1200); do

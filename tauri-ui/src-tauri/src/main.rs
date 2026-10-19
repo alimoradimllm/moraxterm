@@ -1274,13 +1274,21 @@ fn apply_test_ssh_config(args: &mut Vec<String>, config: Option<String>) {
 /// disposable-server tests never read or write the user's real `~/.ssh`.
 fn sftp_batch_command(port: u16, username: &str, host: &str) -> std::process::Command {
     let mut command = std::process::Command::new(if cfg!(windows) { "sftp.exe" } else { "sftp" });
-    #[cfg(test)]
-    if let Ok(config) = std::env::var("MORAXTERM_TEST_SSH_CONFIG") {
+    // Test hooks, inert unless the variable is set and not blank: a throwaway ssh config, and a bandwidth limit (kbit/s) so a transfer
+    // lasts long enough to watch. They are not compiled out, because the UI tests drive the built exe.
+    if let Some(config) = std::env::var("MORAXTERM_TEST_SSH_CONFIG")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+    {
         command.args(["-F", &config]);
     }
-    #[cfg(test)]
-    if let Ok(limit) = std::env::var("MORAXTERM_TEST_SFTP_LIMIT_KBIT") {
-        command.args(["-l", &limit]);
+    if let Some(limit) = std::env::var("MORAXTERM_TEST_SFTP_LIMIT_KBIT")
+        .ok()
+        .filter(|value| {
+            value.trim().chars().all(|c| c.is_ascii_digit()) && !value.trim().is_empty()
+        })
+    {
+        command.args(["-l", limit.trim()]);
     }
     command.args([
         "-o",
@@ -1384,6 +1392,88 @@ type SftpJobs = Arc<Mutex<HashMap<String, Child>>>;
 type SftpEmitter = Arc<dyn Fn(&'static str, SftpTransferEvent) + Send + Sync>;
 
 static SFTP_JOB_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// `sftp` draws a progress meter only on a terminal, and Moraxterm runs it on pipes, so an upload's progress cannot be read from its
+/// output. Instead a second short connection asks the server how big the remote file is while the transfer runs.
+/// Size from an `sftp` long listing line such as `-rw-r--r--    ? ali      ali       3000000 Oct 20 00:28 /path/file`.
+/// Prompt echoes (`sftp> ls ...`), directories and anything that is not a long-listing line are ignored.
+fn parse_listing_size(listing: &str) -> Option<u64> {
+    listing.lines().rev().find_map(|line| {
+        let mut parts = line.split_whitespace();
+        let permissions = parts.next()?;
+        if permissions.len() < 10 || !(permissions.starts_with('-') || permissions.starts_with('l'))
+        {
+            return None;
+        }
+        // after the permissions: link count, owner, group, size
+        parts.nth(3)?.parse().ok()
+    })
+}
+
+/// `ls` expands wildcards, so a name containing them could report some other file's size.
+fn has_glob_characters(path: &str) -> bool {
+    path.chars()
+        .any(|c| matches!(c, '*' | '?' | '[' | ']' | '{' | '}'))
+}
+
+fn remote_file_size(port: u16, username: &str, host: &str, remote_path: &str) -> Option<u64> {
+    let script = format!("ls -ln \"{remote_path}\"\n");
+    parse_listing_size(&run_sftp_script(port, username, host, &script).ok()?)
+}
+
+struct RemoteSizePoll {
+    jobs: SftpJobs,
+    emitter: SftpEmitter,
+    id: String,
+    upload: bool,
+    total_bytes: Arc<std::sync::atomic::AtomicU64>,
+    port: u16,
+    username: String,
+    host: String,
+    remote_path: String,
+}
+
+/// While the job is running: for an upload, report how many bytes the remote file holds; for a download, learn the remote file's
+/// full size once so the download meter has a total. Stops by itself when the job is no longer running.
+fn spawn_remote_size_poller(poll: RemoteSizePoll) {
+    std::thread::spawn(move || {
+        let mut wait = Duration::from_millis(400);
+        loop {
+            std::thread::sleep(wait);
+            wait = Duration::from_millis(1000);
+            let running = poll
+                .jobs
+                .lock()
+                .map(|jobs| jobs.contains_key(&poll.id))
+                .unwrap_or(false);
+            if !running {
+                break;
+            }
+            let Some(size) =
+                remote_file_size(poll.port, &poll.username, &poll.host, &poll.remote_path)
+            else {
+                continue;
+            };
+            if poll.upload {
+                let total = poll.total_bytes.load(std::sync::atomic::Ordering::Relaxed);
+                (poll.emitter)(
+                    "sftp-transfer-progress",
+                    SftpTransferEvent {
+                        id: poll.id.clone(),
+                        success: false,
+                        message: "progress".into(),
+                        transferred_bytes: Some(if total > 0 { size.min(total) } else { size }),
+                        total_bytes: (total > 0).then_some(total),
+                    },
+                );
+            } else {
+                poll.total_bytes
+                    .store(size, std::sync::atomic::Ordering::Relaxed);
+                break; // a download only needs its total once
+            }
+        }
+    });
+}
 
 #[tauri::command]
 fn start_sftp_transfer(
@@ -1506,13 +1596,36 @@ fn begin_sftp_transfer(
     jobs.lock()
         .map_err(|_| "SFTP manager poisoned")?
         .insert(id.clone(), child);
+    // Full size of the file being moved: for an upload, the local file; for a download, filled in below from the remote listing.
+    let total_bytes = Arc::new(std::sync::atomic::AtomicU64::new(
+        if direction == "upload" {
+            std::fs::metadata(&local_path).map(|m| m.len()).unwrap_or(0)
+        } else {
+            0
+        },
+    ));
+    if !has_glob_characters(&remote_path) {
+        spawn_remote_size_poller(RemoteSizePoll {
+            jobs: Arc::clone(&jobs),
+            emitter: emitter.clone(),
+            id: id.clone(),
+            upload: direction == "upload",
+            total_bytes: Arc::clone(&total_bytes),
+            port,
+            username: username.clone(),
+            host: host.clone(),
+            remote_path: remote_path.clone(),
+        });
+    }
     let job_id = id.clone();
     let progress_path = local_path.clone();
     let progress_direction = direction.clone();
+    let download_total = Arc::clone(&total_bytes);
     std::thread::spawn(move || loop {
         std::thread::sleep(Duration::from_millis(100));
         if progress_direction == "download" {
             if let Ok(metadata) = std::fs::metadata(&progress_path) {
+                let total = download_total.load(std::sync::atomic::Ordering::Relaxed);
                 emitter(
                     "sftp-transfer-progress",
                     SftpTransferEvent {
@@ -1520,7 +1633,7 @@ fn begin_sftp_transfer(
                         success: false,
                         message: "progress".into(),
                         transferred_bytes: Some(metadata.len()),
-                        total_bytes: None,
+                        total_bytes: (total > 0).then_some(total),
                     },
                 );
             }
@@ -2721,6 +2834,109 @@ mod tests {
             assert!(super::scan_host_key(host, 22).is_err(), "{host:?}");
         }
         assert!(super::scan_host_key("example.test", 0).is_err());
+    }
+
+    #[test]
+    fn listing_size_is_read_from_real_sftp_output_and_ignores_everything_else() {
+        use super::parse_listing_size as size;
+        // exact text printed by OpenSSH sftp (Debian) in the probe, including the echoed prompt line
+        let real = "sftp> ls -ln /tmp/x/big.bin\n-rw-r--r--    ? 1000     1000       3000000 Oct 20 00:28 /tmp/x/big.bin\n";
+        assert_eq!(size(real), Some(3_000_000));
+        assert_eq!(
+            size("-rw-r--r--    ? ali      ali       3000000 Oct 20 00:28 /tmp/x/big.bin"),
+            Some(3_000_000)
+        );
+        assert_eq!(size("-rw-r--r--    1 0 0 0 Jan  1 00:00 empty"), Some(0));
+        assert_eq!(
+            size("lrwxrwxrwx    1 0 0 11 Jan  1 00:00 link -> target"),
+            Some(11)
+        );
+        assert_eq!(
+            size("drwxr-xr-x    2 0 0 4096 Jan  1 00:00 dir"),
+            None,
+            "a directory is not a file size"
+        );
+        assert_eq!(size("sftp> ls -ln /tmp/x/big.bin\n"), None);
+        assert_eq!(size("/tmp/x/big.bin: No such file or directory\n"), None);
+        assert_eq!(size(""), None);
+        assert_eq!(size("-rw-r--r-- ? 1 1 notanumber Jan 1 00:00 f"), None);
+    }
+
+    #[test]
+    fn remote_size_polling_is_skipped_for_paths_with_wildcards() {
+        use super::has_glob_characters as glob;
+        for path in ["/a/b*.bin", "/a/?.bin", "/a/[x].bin", "/a/{1,2}.bin"] {
+            assert!(glob(path), "{path}");
+        }
+        for path in ["/a/b.bin", "/home/user/my file (1).tar.gz", "C:/dir/f.txt"] {
+            assert!(!glob(path), "{path}");
+        }
+    }
+
+    #[test]
+    #[ignore = "needs a disposable sshd; run scripts/disposable_sftp_commands_test.sh"]
+    fn sftp_upload_progress_rises_while_the_file_is_still_being_sent() {
+        use super::{begin_sftp_transfer, SftpJobs};
+        let port: u16 = std::env::var("MORAXTERM_TEST_SFTP_PORT")
+            .unwrap()
+            .parse()
+            .unwrap();
+        let user = std::env::var("MORAXTERM_TEST_SFTP_USER").unwrap();
+        let remote = std::env::var("MORAXTERM_TEST_SFTP_REMOTE_DIR").unwrap();
+        let local =
+            std::path::PathBuf::from(std::env::var("MORAXTERM_TEST_SFTP_LOCAL_DIR").unwrap());
+        let source = local.join("progress_src.bin");
+        let size: u64 = 1_500_000;
+        std::fs::write(&source, vec![7u8; size as usize]).unwrap();
+        let jobs: SftpJobs = Default::default();
+        let (emitter, events) = recording_emitter();
+        // throttle the transfer (about 8 s) so it is still running while progress is sampled
+        std::env::set_var("MORAXTERM_TEST_SFTP_LIMIT_KBIT", "1600");
+        let id = begin_sftp_transfer(
+            jobs,
+            emitter,
+            "127.0.0.1".into(),
+            user,
+            port,
+            "upload".into(),
+            source
+                .to_string_lossy()
+                .replace(std::path::MAIN_SEPARATOR, "/"),
+            format!("{remote}/progress_dst.bin"),
+            false,
+        )
+        .unwrap();
+        std::env::remove_var("MORAXTERM_TEST_SFTP_LIMIT_KBIT"); // later polls must not be throttled
+        let done = wait_for_exit(&events, &id);
+        assert!(done.success, "upload failed: {}", done.message);
+        let samples: Vec<(u64, Option<u64>)> = events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(name, e)| name == "sftp-transfer-progress" && e.id == id)
+            .map(|(_, e)| (e.transferred_bytes.unwrap(), e.total_bytes))
+            .collect();
+        eprintln!("upload progress samples (bytes, total): {samples:?}");
+        assert!(
+            samples.len() >= 3,
+            "expected several samples, got {samples:?}"
+        );
+        assert!(
+            samples.iter().all(|(_, total)| *total == Some(size)),
+            "every sample must carry the file size: {samples:?}"
+        );
+        assert!(
+            samples.windows(2).all(|w| w[0].0 <= w[1].0),
+            "progress must never go backwards: {samples:?}"
+        );
+        assert!(
+            samples.iter().all(|(sent, _)| *sent <= size),
+            "progress above the file size: {samples:?}"
+        );
+        assert!(
+            samples.iter().any(|(sent, _)| *sent > 0 && *sent < size),
+            "no sample was taken while the upload was partway: {samples:?}"
+        );
     }
 
     #[test]
