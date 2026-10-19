@@ -62,9 +62,9 @@ of full third-party terminal workspace parity.
 - The SFTP browser now exposes a resume option backed by OpenSSH `reget` and
   `reput`. Byte-level progress and drag-and-drop remain open.
 - The SFTP local pane now accepts dropped files and queues them for upload.
-  Download jobs display observed destination-file byte growth; upload progress
-  remains indeterminate because the native batch client exposes no reliable
-  remote byte counter.
+  Download jobs display observed destination-file byte growth. Upload progress was
+  indeterminate here; since #38 it is measured by asking the server for the remote file
+  size during the transfer (see "SFTP progress" in the known gaps).
 - Local SFTP preview now supports read-only UTF-8 files up to 1 MiB. The local
   text editor supports bounded UTF-8 editing with explicit overwrite confirmation.
 - Remote SFTP preview now uses a cleaned-up temporary file with the same 1 MiB
@@ -145,6 +145,18 @@ Nothing here is claimed as done.
 - **README:** real screenshots are in `docs/screenshots/` (dark and light, demo data only). The Persian page has had no native-speaker review.
 - **Release:** 0.1.25 installers (MSI and NSIS, unsigned) were built (#30); no install,
   upgrade-over-0.1.24 or clean-machine test was run, and nothing is tagged or published.
+- **SFTP progress (#38):** the SFTP pane now starts transfers with `start_sftp_transfer` (not
+  blocking), shows a bar with "X of Y (N%)" fed by `sftp-transfer-progress` events, a Cancel
+  button, and a failure state. The OpenSSH `sftp` prints no meter on a pipe (probed), so upload
+  progress is the remote file's size read through a second short sftp connection about once a
+  second; downloads use the local file's growth and learn the total once. Tested: unit tests,
+  an ignored integration test against a throwaway sshd (samples rose 255 KB to 1.3 MB of 1.5 MB),
+  and `ui_sftp_progress_test.py` in the built exe (15/15, three runs). Open: this costs one extra
+  SSH connection per second per transfer (visible in a server's logs); the number is
+  an observed remote size, not bytes acknowledged by the server, so it can lead or lag;
+  resuming an upload (`reput`) shows the whole remote size from the start; wildcard characters
+  in a remote path turn polling off (no bar total for uploads there); a transfer to a server that
+  needs a password was not tested; only the Windows `sftp.exe` against OpenSSH on Linux was run.
 - **Documentation rule:** every change file needs a `Docs:` line and a change that claims a
   status update must include this file (AGENTS.md "Rule for everyone"; enforced by the
   pre-commit hook and CI). It checks that the line exists and that this file was touched, not
@@ -180,8 +192,10 @@ Nothing here is claimed as done.
 - Local and remote browsers, rename/delete/mkdir/permissions, local metadata,
   transfer queue, progress, cancellation, retry, resume, drag/drop, previews,
   bounded local editing, remote edit-copy, direct-operation SFTP preflight, and
-  non-resumable SCP fallback are implemented. Reliable upload-byte progress and
-  disposable-target runtime coverage remain open.
+  non-resumable SCP fallback are implemented. Upload and download progress with a
+  visible bar and a Cancel button now work in the built exe against a disposable server
+  (#38). The SFTP pane's resume, queue and drag-and-drop controls are not in the React
+  pane, and the pane has no remote directory navigation by click.
 - Add integration tests with a disposable local SSH/SFTP server.
 
 ## P1: workspace and protocol parity

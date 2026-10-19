@@ -305,3 +305,12 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 @media (max-width: 1100px) { .react-protocol-tiles { grid-template-columns: repeat(4, 96px); } .react-recent { grid-template-columns: repeat(2, 200px); } }
+
+/* SFTP transfer meter */
+.react-transfer { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-2); }
+.react-transfer-bar { height: 8px; overflow: hidden; border-radius: 999px; background: var(--raised); }
+.react-transfer-bar span { display: block; height: 100%; border-radius: 999px; background: var(--accent); transition: width .25s ease; }
+.react-transfer[data-state='failed'] .react-transfer-bar span { background: var(--bad); }
+.react-transfer[data-state='done'] .react-transfer-bar span { background: var(--ok); }
+.react-transfer-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; font-size: 12px; color: var(--muted); }
+.react-transfer-text { color: var(--text); font-variant-numeric: tabular-nums; }
