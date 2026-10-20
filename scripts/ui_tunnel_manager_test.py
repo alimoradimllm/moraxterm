@@ -23,6 +23,12 @@ try:
  running=js("document.querySelector('[role=status]')?.innerText||''"); assert 'Running:' in running, running
  js("[...document.querySelectorAll('button')].find(b=>(b.innerText||'').includes('Stop tunnel'))?.click()"); time.sleep(2)
  stopped=js("document.querySelector('[role=status]')?.innerText||''"); assert stopped=='Stopped', stopped
- print(json.dumps({"manager":True,"running":running,"stopped":stopped,"tunnel_ui":"PASS"},indent=2))
+ def mode(value): js("(()=>{const s=document.querySelector('select'); const p=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set; p.call(s,%s); s.dispatchEvent(new Event('change',{bubbles:true}))})()"%json.dumps(value))
+ def start_stop():
+  js("[...document.querySelectorAll('button')].find(b=>(b.innerText||'').includes('Start tunnel'))?.click()"); time.sleep(2); r=js("document.querySelector('[role=status]')?.innerText||''"); assert 'Running:' in r, r
+  js("[...document.querySelectorAll('button')].find(b=>(b.innerText||'').includes('Stop tunnel'))?.click()"); time.sleep(1); q=js("document.querySelector('[role=status]')?.innerText||''"); assert q=='Stopped', q
+ mode('remote'); start_stop(); remote=True
+ mode('dynamic'); start_stop(); dynamic=True
+ print(json.dumps({"manager":True,"running":running,"stopped":stopped,"remote_running_stopped":remote,"dynamic_running_stopped":dynamic,"tunnel_ui":"PASS"},indent=2))
 finally:
  proc.terminate(); proc.wait(timeout=10)

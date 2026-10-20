@@ -232,7 +232,7 @@ Nothing here is claimed as done.
 - Add tab movement, duplication, and detachment into a separate window. *(Tab movement and duplication implemented; detachment remains open.)*
 - Add close confirmation for active connections. *(Implemented in source; installed-app verification remains open.)*
 - Selective MultiExec targets, per-session output, status, and stop controls. *(Implemented; verified in the built exe for local shells and, since #33, across real SSH tabs: mirroring, per-tab exclusion, a stopped tab skipped, sent status. A per-target stop button is still missing.)*
-- Multiple tunnel profiles and concurrent tunnel status/logs. *(Implemented in source with saved profiles, independent start/stop/delete controls, and per-profile status/log text; `scripts/disposable_tunnel_profiles_test.sh` verifies two concurrent local forwarding profiles and `scripts/disposable_remote_dynamic_tunnels_test.sh` verifies remote and dynamic forwarding against disposable loopback targets. The installed Tunnel Manager now passes `ui_tunnel_manager_test.py` for local start/status/stop; remote/dynamic UI modes remain open.)*
+- Multiple tunnel profiles and concurrent tunnel status/logs. *(Implemented in source with saved profiles, independent start/stop/delete controls, and per-profile status/log text; `scripts/disposable_tunnel_profiles_test.sh` verifies two concurrent local forwarding profiles and `scripts/disposable_remote_dynamic_tunnels_test.sh` verifies remote and dynamic forwarding against disposable loopback targets. The installed Tunnel Manager now passes `ui_tunnel_manager_test.py` for local, remote, and dynamic start/status/stop against a disposable SSH target; persistent multi-profile UI controls remain open.)*
 - Persist macro libraries with explicit import/export and secure content handling. *(Implemented in source with named local macros, validated JSON import, JSON export, replay, deletion, and bounded storage.)*
 
 ### Remote protocols
@@ -327,3 +327,4 @@ Do not publish a new release until all of the following are true:
   or connection strings in documentation, fixtures, screenshots, or commits.
 - Update this document and the main roadmap together when a priority changes.
 - Keep the Windows runtime evidence in [`WINDOWS_TERMINAL_TEST_MATRIX.md`](WINDOWS_TERMINAL_TEST_MATRIX.md).
+
