@@ -6,6 +6,8 @@ export interface UiSettings {
   fontSize: number;
   cursorBlink: boolean;
   highlightKeywords: boolean;
+  aiEnabled: boolean;
+  aiProvider: 'none' | 'local';
 }
 
 interface SettingsProps {
@@ -15,7 +17,7 @@ interface SettingsProps {
 }
 
 export const defaultUiSettings: UiSettings = {
-  appTheme: 'mobaxterm', terminalTheme: 'mobaxterm', fontSize: 13, cursorBlink: true, highlightKeywords: true,
+  appTheme: 'mobaxterm', terminalTheme: 'mobaxterm', fontSize: 13, cursorBlink: true, highlightKeywords: true, aiEnabled: false, aiProvider: 'none',
 };
 
 export default function Settings({ value, onSave, onCancel }: SettingsProps) {
@@ -41,6 +43,10 @@ export default function Settings({ value, onSave, onCancel }: SettingsProps) {
         <h3 className="react-settings-heading">Behavior</h3>
         <label className="react-check"><input type="checkbox" checked={draft.highlightKeywords} onChange={event => update('highlightKeywords', event.target.checked)} /> Highlight terminal keywords</label>
         <div className="react-editor-note">Selection copies automatically and right-click pastes through the normal terminal input path. Credentials and private keys are never stored here.</div>
+        <h3 className="react-settings-heading">AI assistance</h3>
+        <label className="react-check"><input type="checkbox" checked={draft.aiEnabled} onChange={event => update('aiEnabled', event.target.checked)} /> Enable preview-only AI assistance</label>
+        <label>Provider<select value={draft.aiProvider} onChange={event => update('aiProvider', event.target.value as UiSettings['aiProvider'])}><option value="none">Disabled</option><option value="local">Local provider (adapter required)</option></select></label>
+        <div className="react-editor-note">AI output is redacted and preview-only. Moraxterm never auto-executes generated commands; no provider is bundled by default.</div>
       </>}
     </div>
     <footer className="react-editor-footer"><button onClick={onCancel}>Cancel</button><button className="primary" onClick={() => onSave(draft)}>Save settings</button></footer>

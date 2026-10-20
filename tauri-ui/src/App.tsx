@@ -17,6 +17,7 @@ import TunnelManager from './TunnelManager';
 import ToolsPanel from './ToolsPanel';
 import SftpPane from './SftpPane';
 import { filterPaletteCommands, isPaletteShortcut } from './commandPalette.js';
+import { createAiProvider } from './aiAssistant.js';
 import {
   fallbackSessions,
   normalizeTerminalEvent,
@@ -324,6 +325,10 @@ export default function App() {
   const openView = () => { if (active) splitWorkspace(); else showNotice('Open a terminal before using View or Split.'); };
   const openTunnel = () => { setNotice(undefined); setPanel('tunnel'); };
   const openHelp = () => showNotice('Shortcuts: Enter executes terminal input, R reconnects, S resumes, and the toolbar opens Sessions, Split, Duplicate, MultiExec, Packages, and Settings.');
+  const previewAi = async () => {
+    const result = await createAiProvider({ enabled: uiSettings.aiEnabled, provider: uiSettings.aiProvider }).preview('');
+    showNotice(result.text);
+  };
   const openXserver = async () => {
     try { showNotice(await tauriInvoke<string>('xserver_status')); }
     catch (error) { showNotice(`X server status failed: ${error instanceof Error ? error.message : String(error)}`); }
@@ -334,7 +339,7 @@ export default function App() {
     { label: 'Open settings', run: () => setPanel('settings') }, { label: 'Open tools', run: openTools }, { label: 'Toggle focus mode', run: () => setFocusMode(value => !value) }, { label: 'Go home', run: () => { setActiveId(undefined); setPanel(undefined); } },
   ], paletteQuery);
   return <div className={`react-app-shell${focusMode ? ' focus-mode' : ''}`}>
-    {!focusMode && <><div className="react-menu-row"><span className="react-brand"><span className="logo" aria-hidden="true" dangerouslySetInnerHTML={{ __html: logoSvg }} />Moraxterm</span><button onClick={() => showNotice('Use Session or Start local terminal to open a terminal.')}>Terminal</button><button onClick={() => { setTabs([]); setPanel(undefined); }}>Sessions</button><button onClick={openView}>View</button><button onClick={openXserver}>X server</button><button onClick={openTools}>Tools</button><button onClick={() => setPanel('settings')}>Settings</button><button onClick={() => setPanel('macros')}>Macros</button><button onClick={openHelp}>Help</button></div>
+    {!focusMode && <><div className="react-menu-row"><span className="react-brand"><span className="logo" aria-hidden="true" dangerouslySetInnerHTML={{ __html: logoSvg }} />Moraxterm</span><button onClick={() => showNotice('Use Session or Start local terminal to open a terminal.')}>Terminal</button><button onClick={() => { setTabs([]); setPanel(undefined); }}>Sessions</button><button onClick={openView}>View</button><button onClick={openXserver}>X server</button><button onClick={openTools}>Tools</button><button onClick={() => setPanel('settings')}>Settings</button><button onClick={previewAi}>AI preview</button><button onClick={() => setPanel('macros')}>Macros</button><button onClick={openHelp}>Help</button></div>
     <Toolbar multiExec={multiExec} split={Boolean(split)} onNewShell={() => openSession({ name: 'Local Shell', session_type: 'Unix', host: '', username: '', port: 0, unix_shell: 'fish' })} onHome={() => { setActiveId(undefined); setEditorSession(undefined); setPanel(undefined); }} onEdit={() => { if (active) setEditorSession(active.session); else if (sessions[0]) setEditorSession(sessions[0]); }} onSettings={() => setPanel('settings')} onMacros={() => setPanel('macros')} onMultiExec={openMultiExec} onSftp={() => setPanel('sftp')} onSplit={splitWorkspace} onDuplicate={duplicateActive} onTools={openTools} onView={openView} onTunnel={openTunnel} onHelp={openHelp} onXserver={openXserver} /></>}
     {paletteOpen && <div className="react-command-palette" role="dialog" aria-label="Command palette"><input autoFocus placeholder="Type a command..." value={paletteQuery} onChange={event => setPaletteQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') setPaletteOpen(false); if (event.key === 'Enter' && commands[0]) { commands[0].run(); setPaletteOpen(false); } }} />{commands.map(command => <button key={command.label} onClick={() => { command.run(); setPaletteOpen(false); }}>{command.label}</button>)}</div>}
     {notice && <div className="react-action-notice" role="status">{notice}<button aria-label="Dismiss notice" onClick={() => setNotice(undefined)}>×</button></div>}
