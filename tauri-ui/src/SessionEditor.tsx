@@ -38,19 +38,22 @@ export default function SessionEditor({ session, folders = [], onSave, onCancel 
   const saveCredential = async () => {
     if (!credentialSecret) { setCredentialStatus('Enter a password to save.'); return; }
     setCredentialBusy(true);
-    try { await tauriInvoke(identityName ? 'identity_store' : 'credential_store', { ...credentialArgs, secret: credentialSecret }); setCredentialSecret(''); update('credential_ref', `keyring:${identityName || credentialAccount}`); setCredentialStatus('Saved in OS credential storage.'); }
+    if (identityName && await tauriInvoke<boolean>('identity_status', { name: identityName, kind: 'password' }) && !window.confirm(`Overwrite shared identity “${identityName}”?`)) { setCredentialBusy(false); return; }
+    try { await tauriInvoke(identityName ? 'identity_store' : 'credential_store', { ...credentialArgs, secret: credentialSecret }); setCredentialSecret(''); setCredentialStatus('Saved in OS credential storage.'); }
     catch (error) { setCredentialStatus(error instanceof Error ? error.message : String(error)); }
     finally { setCredentialBusy(false); }
   };
   const deleteCredential = async () => {
     setCredentialBusy(true);
-    try { await tauriInvoke(identityName ? 'identity_delete' : 'credential_delete', credentialArgs); update('credential_ref', undefined); setCredentialStatus('Deleted from OS credential storage.'); }
+    if (identityName && !window.confirm(`Delete shared identity “${identityName}”?`)) { setCredentialBusy(false); return; }
+    try { await tauriInvoke(identityName ? 'identity_delete' : 'credential_delete', credentialArgs); setCredentialStatus('Deleted from OS credential storage.'); }
     catch (error) { setCredentialStatus(error instanceof Error ? error.message : String(error)); }
     finally { setCredentialBusy(false); }
   };
   const savePrivateKeyIdentity = async () => {
     if (!identityName || !draft.private_key?.trim()) { setCredentialStatus('Enter an identity name and private key path first.'); return; }
     setCredentialBusy(true);
+    if (await tauriInvoke<boolean>('identity_status', { name: identityName, kind: 'private-key' }) && !window.confirm(`Overwrite shared private-key identity “${identityName}”?`)) { setCredentialBusy(false); return; }
     try { await tauriInvoke('identity_store', { name: identityName, kind: 'private-key', secret: draft.private_key.trim() }); setCredentialStatus('Private-key identity saved in OS credential storage.'); }
     catch (error) { setCredentialStatus(error instanceof Error ? error.message : String(error)); }
     finally { setCredentialBusy(false); }
@@ -65,6 +68,7 @@ export default function SessionEditor({ session, folders = [], onSave, onCancel 
   const deletePrivateKeyIdentity = async () => {
     if (!identityName) return;
     setCredentialBusy(true);
+    if (!window.confirm(`Delete shared private-key identity “${identityName}”?`)) { setCredentialBusy(false); return; }
     try { await tauriInvoke('identity_delete', { name: identityName, kind: 'private-key' }); setCredentialStatus('Private-key identity deleted from OS credential storage.'); }
     catch (error) { setCredentialStatus(error instanceof Error ? error.message : String(error)); }
     finally { setCredentialBusy(false); }
