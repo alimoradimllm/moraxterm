@@ -8,16 +8,24 @@ from the session list, and confirms: a real bash prompt from the distribution re
 xterm.js pane, a typed command's output appears, and the shell keeps working - the same proof
 shape as scripts/ui_smoke_test.py for Local Shell, applied to the WSL code path instead.
 
+A second session repeats this with an explicit, non-default `wsl_user` (main.rs passes it to
+both the preflight probe and the real launch as `-u <user>`) and checks `whoami` inside the
+session actually reports that user, not the distribution's default one - proving the field is
+honored, not just accepted and ignored.
+
 Run after scripts/ui_launch_test_instance.py has started the exe (same MORAXTERM_UI_PORT in
 both). Needs a working `wsl.exe` with at least one installed distribution; set
 MORAXTERM_TEST_WSL_DISTRO to pick one (defaults to "Debian", matching the existing PTY-level
-WSL test in rust-core/tests/windows_pty_matrix.rs).
+WSL test in rust-core/tests/windows_pty_matrix.rs). The non-default-user check needs a second
+account that differs from the distribution's configured default user; set
+MORAXTERM_TEST_WSL_USER to pick one (defaults to "root", which every distribution has).
 """
 import json, os, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from cdp_driver import App
 
 DISTRO = os.environ.get("MORAXTERM_TEST_WSL_DISTRO", "Debian")
+NONDEFAULT_USER = os.environ.get("MORAXTERM_TEST_WSL_USER", "root")
 
 a = App()
 res = {}
@@ -81,6 +89,30 @@ if not res["wsl_shell_answers_with_marker"]:
 
 typeline("echo AFTER''WSL_OK")
 res["shell_still_works_after_marker"] = wait(lambda: "AFTERWSL_OK" in term_text(), 15)
+if not res["shell_still_works_after_marker"]:
+    bail("WSL shell stopped responding after the marker check")
+
+# Negative-control baseline: this session had no wsl_user, so its default-user shell must not
+# already be the account the next check asks for - otherwise that check could pass even if
+# wsl_user were silently ignored.
+typeline("whoami")
+time.sleep(2)
+res["default_session_is_not_already_the_nondefault_user"] = NONDEFAULT_USER not in term_text()[-200:]
+
+# A second session with an explicit, non-default wsl_user.
+nondefault_session = dict(wsl_session, name="WSL UI Test User", wsl_user=NONDEFAULT_USER)
+a.eval("window.__TAURI__.core.invoke('save_session', {session: %s})" % json.dumps(nondefault_session))
+a.eval("location.reload()")
+time.sleep(3)
+
+a.eval("[...document.querySelectorAll('button.react-session')].find(x=>/WSL UI Test User/.test(x.innerText))?.click()")
+res["nondefault_user_pane_opened"] = wait(lambda: "react-terminal-host" in (a.eval("document.body.innerHTML") or ""), 15)
+if not res["nondefault_user_pane_opened"]:
+    bail(f"WSL session with wsl_user={NONDEFAULT_USER!r} did not open a terminal pane")
+
+time.sleep(5)
+typeline("whoami")
+res["session_runs_as_the_requested_nondefault_user"] = wait(lambda: NONDEFAULT_USER in term_text(), 15)
 
 print(json.dumps(res, indent=1))
 print("ALL PASS" if all(res.values()) else "FAILURES: " + ", ".join(k for k, v in res.items() if not v))

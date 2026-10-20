@@ -279,8 +279,11 @@ Nothing here is claimed as done.
   `tauri-ui/src-tauri/src/main.rs`, a real Debian bash shell answers a typed command, and the
   shell keeps working afterward - a different, previously untested code path from the PTY-level
   WSL coverage in `rust-core/tests/windows_pty_matrix.rs`, which drives `wsl.exe` directly and
-  bypasses the app entirely. Non-default `wsl_user`, a configured `wsl_command`, resize,
-  alternate-screen programs, and Unicode inside a WSL session through the app remain open.
+  bypasses the app entirely. A second session with an explicit, non-default `wsl_user` (`root`)
+  confirms `whoami` inside it reports that user and not the distribution's configured default
+  (verified as a real baseline, not assumed), proving the field is honored rather than silently
+  ignored. A configured `wsl_command`, resize, alternate-screen programs, and Unicode inside a
+  WSL session through the app remain open.
 
 ## P2: advanced tools and operations
 
