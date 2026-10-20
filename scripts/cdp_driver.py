@@ -59,6 +59,17 @@ class App:
     def right_click(self, x, y):
         self.click(x, y, button="right")
 
+    def drag(self, x1, y1, x2, y2, steps=5):
+        self.call("Input.dispatchMouseEvent", type="mousePressed", x=x1, y=y1, button="left", clickCount=1)
+        for i in range(1, steps + 1):
+            x = x1 + (x2 - x1) * i / steps
+            y = y1 + (y2 - y1) * i / steps
+            self.call("Input.dispatchMouseEvent", type="mouseMoved", x=x, y=y, button="left")
+        self.call("Input.dispatchMouseEvent", type="mouseReleased", x=x2, y=y2, button="left", clickCount=1)
+
+    def scroll(self, x, y, delta_y):
+        self.call("Input.dispatchMouseEvent", type="mouseWheel", x=x, y=y, deltaX=0, deltaY=delta_y)
+
     def shot(self, path):
         import base64
         r = self.call("Page.captureScreenshot", format="png")
