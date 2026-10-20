@@ -6,6 +6,10 @@ export interface Session {
   host?: string;
   username?: string;
   port?: number;
+  /** Secret-free OS keyring reference; never contains a password or key material. */
+  credential_ref?: string;
+  /** Local private-key path only; the key bytes remain outside session storage. */
+  private_key?: string;
   folder?: string;
   working_directory?: string;
   favorite?: boolean;
