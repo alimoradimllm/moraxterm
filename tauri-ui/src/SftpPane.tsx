@@ -4,8 +4,32 @@ import { applyProgress, describeProgress, percent, type Meter, type ProgressEven
 
 interface SftpPaneProps { session?: Session; onClose: () => void; }
 
-function parseRows(text: string): string[] {
-  return text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+interface RemoteRow { text: string; name?: string; directory: boolean; }
+
+function parseRows(text: string): RemoteRow[] {
+  return text.split(/\r?\n/).map(line => line.trim()).filter(Boolean).map(text => {
+    // OpenSSH's `ls -la` output starts with the mode; the final token is the
+    // filename (the native command already quotes paths safely).
+    const fields = text.split(/\s+/);
+    const directory = text.startsWith('d');
+    const name = directory && fields.length >= 9 ? fields.slice(8).join(' ') : undefined;
+    return { text, name: name && !['.', '..'].includes(name) ? name : undefined, directory };
+  });
+}
+
+function joinRemotePath(base: string, name: string): string {
+  if (base === '~' || base === '') return `~/${name}`;
+  return `${base.replace(/\/$/, '')}/${name}`;
+}
+
+function parentRemotePath(value: string): string {
+  if (!value || value === '~' || value === '/') return value || '~';
+  const trimmed = value.replace(/\/$/, '');
+  const slash = trimmed.lastIndexOf('/');
+  if (slash < 0) return '~';
+  if (slash === 0) return '/';
+  if (trimmed.startsWith('~/') && slash === 1) return '~';
+  return trimmed.slice(0, slash);
 }
 
 export default function SftpPane({ session, onClose }: SftpPaneProps) {
@@ -48,6 +72,7 @@ export default function SftpPane({ session, onClose }: SftpPaneProps) {
   }, [exit, jobId, jobLabel]);
 
   const rows = parseRows(output);
+  const navigate = (next: string) => { setPath(next); setOutput(''); void request(() => invoke('sftp_list', { host, username, port, path: next }), `Listed ${next}`); };
   const request = async (action: () => Promise<unknown>, success: string) => {
     setBusy(true); setStatus('Working…');
     try { const result = await action(); setOutput(String(result || '')); setStatus(success); }
@@ -72,8 +97,9 @@ export default function SftpPane({ session, onClose }: SftpPaneProps) {
 
   return <section className="react-sftp-pane">
     <header className="react-sftp-header"><div><strong>SFTP / FTP Browser</strong><small>{session ? `${username}@${host}:${port}` : 'No active session'}</small></div><button onClick={onClose}>Close</button></header>
-    <div className="react-sftp-path"><label>Remote path<input value={path} onChange={event => setPath(event.target.value)} /></label><button disabled={busy || !host || !username} onClick={list}>Refresh</button></div>
-    <div className="react-sftp-body"><div className="react-sftp-list"><h3>Remote directory</h3>{rows.length ? rows.map((row, index) => <div className="react-sftp-row" key={`${index}-${row}`}>{row}</div>) : <p className="react-sftp-empty">No listing loaded.</p>}</div>
+    <div className="react-sftp-path"><label>Remote path<input value={path} onChange={event => setPath(event.target.value)} /></label><button disabled={busy || !host || !username} onClick={list}>Refresh</button><button disabled={busy || path === '~' || path === '/'} onClick={() => navigate(parentRemotePath(path))}>Up</button></div>
+    <nav className="react-sftp-breadcrumbs" aria-label="Remote path breadcrumbs">{path.split('/').filter(Boolean).map((part, index, parts) => { const crumb = path.startsWith('~') ? `~/${parts.slice(1, index + 1).join('/')}` : `/${parts.slice(0, index + 1).join('/')}`; return <button key={`${crumb}-${index}`} disabled={busy || crumb === path} onClick={() => navigate(crumb)}>{part}</button>; })}</nav>
+    <div className="react-sftp-body"><div className="react-sftp-list"><h3>Remote directory</h3>{rows.length ? rows.map((row, index) => row.directory && row.name ? <button className="react-sftp-row" key={`${index}-${row.text}`} onClick={() => navigate(joinRemotePath(path, row.name!))}>{row.text}</button> : <div className="react-sftp-row" key={`${index}-${row.text}`}>{row.text}</div>) : <p className="react-sftp-empty">No listing loaded.</p>}</div>
       <div className="react-sftp-actions"><h3>Operations</h3><label>Path<input value={operationPath} onChange={event => setOperationPath(event.target.value)} placeholder="/remote/file" /></label><label>Target<input value={target} onChange={event => setTarget(event.target.value)} placeholder="/remote/target or local file" /></label><label>Mode<input value={mode} onChange={event => setMode(event.target.value)} /></label><div className="react-sftp-buttons"><button disabled={busy || !host} onClick={() => operate('mkdir')}>New folder</button><button disabled={busy || !host} onClick={() => operate('rename')}>Rename</button><button disabled={busy || !host} onClick={() => operate('delete')}>Delete</button><button disabled={busy || !host} onClick={() => operate('chmod')}>Permissions</button><button disabled={busy || !host} onClick={() => transfer('upload')}>Upload</button><button disabled={busy || !host} onClick={() => transfer('download')}>Download</button></div>
         {jobId && <div className="react-transfer" data-state={running ? 'running' : exit?.success ? 'done' : 'failed'}>
           <div className="react-transfer-bar" role="progressbar" aria-label={`${jobLabel} progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={barPercent ?? (exit?.success ? 100 : undefined)}><span style={{ width: `${exit?.success ? 100 : barPercent ?? 0}%` }} /></div>

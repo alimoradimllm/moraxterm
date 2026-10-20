@@ -292,11 +292,13 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .react-sftp-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 24px; background: var(--panel); border-bottom: 1px solid var(--line); }
 .react-sftp-header strong { display: block; font-size: 15px; } .react-sftp-header small { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; }
 .react-sftp-path { display: flex; gap: 10px; align-items: end; padding: 12px 24px; background: var(--panel-2); border-bottom: 1px solid var(--line); }
+.react-sftp-breadcrumbs { display: flex; gap: 4px; align-items: center; padding: 6px 24px; border-bottom: 1px solid var(--line); }
+.react-sftp-breadcrumbs button { border: 0; background: transparent; color: var(--accent); cursor: pointer; padding: 2px 4px; }
 .react-sftp-path label, .react-sftp-actions label { display: flex; flex: 1; flex-direction: column; gap: 5px; color: var(--muted); font-size: 11px; }
 .react-sftp-body { display: grid; min-height: 0; flex: 1; grid-template-columns: minmax(0, 1fr) 290px; }
 .react-sftp-list { min-width: 0; overflow: auto; padding: 14px 24px; }
 .react-sftp-list h3, .react-sftp-actions h3 { margin: 0 0 12px; font-size: 13px; }
-.react-sftp-row { padding: 7px 10px; color: var(--text); font-family: var(--mono); font-size: 12px; border-bottom: 1px solid var(--line); border-radius: 4px; }
+.react-sftp-row { display: block; width: 100%; padding: 7px 10px; color: var(--text); font-family: var(--mono); font-size: 12px; text-align: left; border: 0; border-bottom: 1px solid var(--line); border-radius: 4px; background: transparent; cursor: pointer; }
 .react-sftp-row:hover { background: var(--panel-2); }
 .react-sftp-empty { color: var(--muted); font-size: 12px; }
 .react-sftp-actions { display: flex; gap: 10px; flex-direction: column; padding: 14px; background: var(--panel); border-left: 1px solid var(--line); }
