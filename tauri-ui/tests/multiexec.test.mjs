@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isMultiPasteShortcut, isTerminalReply, mirrorTargets, pasteTargets } from '../src/multiexec.js';
+import { canStop, isMultiPasteShortcut, isTerminalReply, mirrorTargets, pasteTargets } from '../src/multiexec.js';
 
 const tabs = [
   { id: 'a', state: 'connected' },
@@ -62,4 +62,14 @@ test('Ctrl+Shift+Insert is the multi-paste shortcut and nothing close to it is',
   assert.ok(!isMultiPasteShortcut(ev({ ctrlKey: true, key: 'Insert', code: 'Insert' })));
   assert.ok(!isMultiPasteShortcut(ev({ ctrlKey: true, shiftKey: true, altKey: true, key: 'Insert', code: 'Insert' })));
   assert.ok(!isMultiPasteShortcut(ev({ ctrlKey: true, shiftKey: true, key: 'v', code: 'KeyV' })));
+});
+
+test('only a live terminal can be stopped, and a stopped one is no longer a mirror target', () => {
+  assert.equal(canStop({ state: 'connected' }), true);
+  assert.equal(canStop({ state: 'starting' }), true);
+  assert.equal(canStop({ state: 'exited' }), false);
+  assert.equal(canStop({ state: 'failed' }), false);
+  const after = tabs.map(tab => tab.id === 'b' ? { ...tab, state: 'exited' } : tab);
+  assert.deepEqual(mirrorTargets({ on: true, sourceId: 'a', tabs: after, excluded: new Set(), data: 'l' }).sort(), ['a', 'c']);
+  assert.deepEqual(pasteTargets({ tabs: after, excluded: new Set() }).sort(), ['a', 'c']);
 });

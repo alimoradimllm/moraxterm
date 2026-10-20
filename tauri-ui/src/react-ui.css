@@ -268,7 +268,11 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .react-multiexec-layout { display: grid; grid-template-columns: minmax(300px, 1fr) minmax(300px, 1fr); min-height: 0; flex: 1; }
 .react-multiexec-targets { min-height: 0; overflow: auto; padding: 18px 28px; border-right: 1px solid var(--line); }
 .react-multiexec-row { display: flex; align-items: center; gap: 10px; min-height: 60px; padding: 10px 12px; margin-bottom: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
-.react-multiexec-row > span { min-width: 0; flex: 1; }
+.react-multiexec-row > span, .react-multiexec-pick { min-width: 0; flex: 1; }
+.react-multiexec-pick { display: flex; align-items: center; gap: 10px; }
+.react-multiexec-pick > span { min-width: 0; flex: 1; }
+.react-multiexec-row.stopped { opacity: .6; }
+.react-multiexec-stop { padding: 4px 10px; font-size: 11px; }
 .react-multiexec-row strong, .react-multiexec-row small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .react-multiexec-row small { margin-top: 3px; color: var(--muted); font-size: 11px; }
 .react-multiexec-row em { color: var(--muted); font-size: 11px; font-style: normal; } .react-multiexec-row em.sent { color: var(--ok); } .react-multiexec-row em.failed { color: var(--bad); }
@@ -323,3 +327,5 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .react-detached { display: flex; flex-direction: column; height: 100vh; background: var(--bg); }
 .react-detached-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px; border-bottom: 1px solid var(--line); }
 .react-detached-host { flex: 1; min-height: 0; }
+.react-multiexec-stop, .react-terminal-actions button.react-stop-target { color: #fff; background: #8e2a1b; border: 1px solid #ff8b78; border-radius: 6px; }
+.react-multiexec-stop:disabled { opacity: .4; }

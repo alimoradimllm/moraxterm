@@ -8,3 +8,4 @@ export function mirrorTargets(args: {
 }): string[];
 export function pasteTargets(args: { tabs: { id: string; state: string }[]; excluded: Set<string> }): string[];
 export function isMultiPasteShortcut(event: { ctrlKey: boolean; shiftKey: boolean; altKey: boolean; key: string; code: string }): boolean;
+export function canStop(tab: { state: string }): boolean;

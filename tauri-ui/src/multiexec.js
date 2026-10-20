@@ -38,3 +38,9 @@ export function pasteTargets({ tabs, excluded }) {
 export function isMultiPasteShortcut(event) {
   return event.ctrlKey && event.shiftKey && !event.altKey && (event.key === 'Insert' || event.code === 'Insert');
 }
+
+// A terminal can be stopped from MultiExec while its process is still alive. Stopping kills only that one process; the other targets keep
+// receiving mirrored input and the stopped tab stays open so it can be reconnected.
+export function canStop(tab) {
+  return tab.state === 'starting' || tab.state === 'connected';
+}

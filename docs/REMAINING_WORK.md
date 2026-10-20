@@ -85,7 +85,7 @@ of full third-party terminal workspace parity.
 - `scripts/disposable_sftp_commands_test.sh` runs the real Tauri bridge functions `sftp_list`, `sftp_operation` (mkdir/rename/chmod/delete), and `sftp_transfer` (upload/download, byte-exact) through the Windows `sftp.exe` against a throwaway loopback `sshd` in Debian WSL (`DISPOSABLE_SFTP_COMMANDS_TEST=PASS`). It found and fixed a bug: SFTP `delete` sent `rm` and `rmdir` in one `sftp -b` batch, which aborts on the first failure, so deleting a file or directory always returned an error. Delete now tries `rm`, then `rmdir`. The UI itself and the queued `start_sftp_transfer` path are not covered.
 - The queued SFTP transfer core (`begin_sftp_transfer`, `cancel_sftp_job`, behind `start_sftp_transfer`/`cancel_sftp_transfer`) is now runtime-tested against a disposable sshd: put/get, `reput`/`reget` resume with byte-exact results, failure reporting, and cancellation of a running job. Cancel now reaps the killed process and job ids carry a unique counter. Frontend event handling, the SFTP UI, and upload-byte progress remain untested/open.
 - `rust-core/tests/windows_pty_matrix.rs` adds 12 Windows ConPTY tests (cmd.exe, PowerShell, vim, Debian WSL) covering input/output, Unicode, 20000-line output, resize (including mid-command), Ctrl+C, Windows EOF (Ctrl+Z), multi-line paste, alternate screen, and mouse-reporting enable sequences; all pass under `cargo test`. These are PTY-level only: xterm.js rendering, keyboard mapping, and the installed app are still untested, and Ctrl+Break, `mc`, `htop`, and a VT conformance run remain open. See `docs/WINDOWS_TERMINAL_TEST_MATRIX.md`.
-- MultiExec now matches the MobaXterm model in the React UI (persistent banner, Multi-paste/Exit, `Ctrl+Shift+Insert`, per-terminal exclude, mirrored typing, sent/failed indicators), verified in the built app across three local PowerShell terminals. SSH and mixed-protocol targets and per-target stop remain open.
+- MultiExec now matches the MobaXterm model in the React UI (persistent banner, Multi-paste/Exit, `Ctrl+Shift+Insert`, per-terminal exclude, mirrored typing, sent/failed indicators), verified in the built app across three local PowerShell terminals. SSH and mixed-protocol targets remain open. Each target has a Stop button (see "MultiExec per-target stop" in the known gaps).
 - Session folders now render as indented nested headings. Folder drag and
   drop, rename, and movement controls are implemented.
 - Session entries can now be dragged onto persisted folder headings and saved
@@ -125,8 +125,8 @@ Nothing here is claimed as done.
   above and unit tests. The SFTP/SCP `--` additions are defence in depth, since injection
   could not be reproduced there.
 - **SSH tabs (#33):** MultiExec across real SSH tabs passes 19/19 three times against a
-  throwaway sshd (`ui_ssh_multiexec_test.py`). Password and SSH-agent logins and a
-  per-target stop button are untested.
+  throwaway sshd (`ui_ssh_multiexec_test.py`). Password and SSH-agent logins are untested.
+- **MultiExec per-target stop:** the Targets panel shows a "■ Stop" button per live target, and each pane bar shows one while MultiExec is on. Stop ends only that terminal's process (`close_terminal`); the tab stays open as `exited`, is skipped by mirroring and Multi-paste, and shows as "stopped" in the panel. Reconnect restarts it. Tested in the built exe with `ui_multiexec_stop_test.py` (three local PowerShell tabs). Reconnect restarts the target and it rejoins mirroring. Open: SSH tabs were not stopped in a test; Stop kills the process with no confirmation; only Windows.
 - **Host-key trust (#34):** the scan, fingerprint, approve, refuse-wrong-fingerprint,
   changed-key warning and remove-and-reapprove flow passes 19/19 three times
   (`ui_hostkey_test.py`, ed25519 only). Open: RSA/ECDSA-only servers, the first-connection
@@ -230,7 +230,7 @@ Nothing here is claimed as done.
 - Add horizontal panes and draggable pane boundaries. *(Implemented in source; installed-app verification remains open.)*
 - Add tab movement, duplication, and detachment into a separate window. *(Tab movement and duplication implemented; detachment remains open.)*
 - Add close confirmation for active connections. *(Implemented in source; installed-app verification remains open.)*
-- Selective MultiExec targets, per-session output, status, and stop controls. *(Implemented; verified in the built exe for local shells and, since #33, across real SSH tabs: mirroring, per-tab exclusion, a stopped tab skipped, sent status. A per-target stop button is still missing.)*
+- Selective MultiExec targets, per-session output, status, and stop controls. *(Implemented; verified in the built exe for local shells and, since #33, across real SSH tabs: mirroring, per-tab exclusion, a stopped tab skipped, sent status. Each target has a Stop button that ends only that terminal; a reconnected target rejoins mirroring.)*
 - Multiple tunnel profiles and concurrent tunnel status/logs. *(Implemented in source with saved profiles, independent start/stop/delete controls, and per-profile status/log text; disposable-target runtime testing remains open.)*
 - Persist macro libraries with explicit import/export and secure content handling. *(Implemented in source with named local macros, validated JSON import, JSON export, replay, deletion, and bounded storage.)*
 
