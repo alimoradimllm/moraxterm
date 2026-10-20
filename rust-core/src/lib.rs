@@ -324,6 +324,26 @@ impl Session {
         }
         Ok(CommandPlan::new(argv))
     }
+
+    pub fn external_plan(&self, program: &str) -> Result<CommandPlan, ValidationError> {
+        if self.host.trim().is_empty() {
+            return Err(ValidationError::EmptyHost);
+        }
+        check_target("host", self.host.trim())?;
+        if !self.username.trim().is_empty() {
+            check_target("username", self.username.trim())?;
+        }
+        let mut argv = vec![program.to_string()];
+        if !self.username.trim().is_empty() {
+            argv.extend(["-l".into(), self.username.trim().to_string()]);
+        }
+        argv.push("--".into());
+        argv.push(self.host.trim().to_string());
+        if self.port != 0 {
+            argv.push(self.port.to_string());
+        }
+        Ok(CommandPlan::new(argv))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

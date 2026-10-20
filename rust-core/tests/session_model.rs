@@ -24,6 +24,25 @@ fn ssh_plan_uses_default_port_without_password() {
 }
 
 #[test]
+fn external_protocol_plan_is_structured_and_rejects_option_injection() {
+    let session = Session {
+        host: "server.example".into(),
+        username: "alice".into(),
+        port: 21,
+        ..Default::default()
+    };
+    assert_eq!(
+        session.external_plan("ftp").unwrap().argv,
+        ["ftp", "-l", "alice", "--", "server.example", "21"]
+    );
+    let unsafe_session = Session {
+        host: "-oProxyCommand=bad".into(),
+        ..session
+    };
+    assert!(unsafe_session.external_plan("rsh").is_err());
+}
+
+#[test]
 fn ssh_plan_selects_key_path_without_embedding_secret_material() {
     let mut session = Session::ssh("key", "example.test", "alice");
     session.private_key = "C:\\Users\\alice\\.ssh\\id_ed25519".into();

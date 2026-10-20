@@ -2265,6 +2265,82 @@ fn start_terminal(
         ("ssh".into(), ssh_args)
     } else if let Some(session) = session
         .as_ref()
+        .filter(|value| value.session_type.eq_ignore_ascii_case("Ftp"))
+    {
+        if !executable_available(if cfg!(windows) { "ftp.exe" } else { "ftp" }) {
+            return Err("FTP client is unavailable: ftp".into());
+        }
+        let plan = session
+            .external_plan("ftp")
+            .map_err(|error| error.to_string())?;
+        (
+            if cfg!(windows) {
+                "ftp.exe".into()
+            } else {
+                "ftp".into()
+            },
+            plan.argv.into_iter().skip(1).collect(),
+        )
+    } else if let Some(session) = session
+        .as_ref()
+        .filter(|value| value.session_type.eq_ignore_ascii_case("Rlogin"))
+    {
+        if !executable_available(if cfg!(windows) {
+            "rlogin.exe"
+        } else {
+            "rlogin"
+        }) {
+            return Err("Rlogin client is unavailable: rlogin".into());
+        }
+        let plan = session
+            .external_plan("rlogin")
+            .map_err(|error| error.to_string())?;
+        (
+            if cfg!(windows) {
+                "rlogin.exe".into()
+            } else {
+                "rlogin".into()
+            },
+            plan.argv.into_iter().skip(1).collect(),
+        )
+    } else if let Some(session) = session
+        .as_ref()
+        .filter(|value| value.session_type.eq_ignore_ascii_case("Rsh"))
+    {
+        if !executable_available(if cfg!(windows) { "rsh.exe" } else { "rsh" }) {
+            return Err("Rsh client is unavailable: rsh".into());
+        }
+        let plan = session
+            .external_plan("rsh")
+            .map_err(|error| error.to_string())?;
+        (
+            if cfg!(windows) {
+                "rsh.exe".into()
+            } else {
+                "rsh".into()
+            },
+            plan.argv.into_iter().skip(1).collect(),
+        )
+    } else if let Some(session) = session
+        .as_ref()
+        .filter(|value| value.session_type.eq_ignore_ascii_case("Xdmcp"))
+    {
+        if !executable_available(if cfg!(windows) { "xdmcp.exe" } else { "xdmcp" }) {
+            return Err("XDMCP client is unavailable: xdmcp".into());
+        }
+        let plan = session
+            .external_plan("xdmcp")
+            .map_err(|error| error.to_string())?;
+        (
+            if cfg!(windows) {
+                "xdmcp.exe".into()
+            } else {
+                "xdmcp".into()
+            },
+            plan.argv.into_iter().skip(1).collect(),
+        )
+    } else if let Some(session) = session
+        .as_ref()
         .filter(|value| value.session_type.eq_ignore_ascii_case("Rdp"))
     {
         if session.host.trim().is_empty() || session.port == 0 {
