@@ -314,3 +314,12 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .react-transfer[data-state='done'] .react-transfer-bar span { background: var(--ok); }
 .react-transfer-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; font-size: 12px; color: var(--muted); }
 .react-transfer-text { color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* Detached terminal: the placeholder in the tab, and the separate window */
+.react-terminal-body { position: relative; flex: 1; min-height: 0; display: flex; }
+.react-terminal-body > .react-terminal-host { flex: 1; min-height: 0; }
+.react-detached-note { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: color-mix(in srgb, var(--panel) 90%, transparent); color: var(--text); text-align: center; padding: 24px; }
+.react-detached-note button { padding: 6px 14px; }
+.react-detached { display: flex; flex-direction: column; height: 100vh; background: var(--bg); }
+.react-detached-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+.react-detached-host { flex: 1; min-height: 0; }

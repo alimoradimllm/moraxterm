@@ -5,14 +5,18 @@ import asyncio, json, os, urllib.request, websockets
 
 PORT = int(os.environ.get("MORAXTERM_UI_PORT") or 9333)
 
-def page_ws():
-    pages = json.load(urllib.request.urlopen(f"http://127.0.0.1:{PORT}/json"))
-    return next(p for p in pages if p["type"] == "page")["webSocketDebuggerUrl"]
+def pages():
+    return [p for p in json.load(urllib.request.urlopen(f"http://127.0.0.1:{PORT}/json")) if p["type"] == "page"]
+
+def page_ws(match=None):
+    """The first page, or the first whose URL contains `match` (a detached terminal window has ?detached=<id> in its URL)."""
+    found = [p for p in pages() if match is None or match in p["url"]]
+    return found[0]["webSocketDebuggerUrl"]
 
 class App:
-    def __init__(self):
+    def __init__(self, match=None):
         self.loop = asyncio.new_event_loop()
-        self.ws = self.loop.run_until_complete(websockets.connect(page_ws(), max_size=50_000_000))
+        self.ws = self.loop.run_until_complete(websockets.connect(page_ws(match), max_size=50_000_000))
         self.n = 0
         # A test window rarely has real keyboard focus; without this, clipboard reads fail with "Document is not focused".
         self.call("Emulation.setFocusEmulationEnabled", enabled=True)

@@ -11,12 +11,18 @@ use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+
+mod detach;
+mod history;
+use history::{TerminalHistory, HISTORY_LIMIT};
 
 #[derive(Default)]
 struct TerminalManager {
     processes: Arc<Mutex<HashMap<String, Arc<Mutex<TerminalProcess>>>>>,
     recordings: Arc<Mutex<HashMap<String, File>>>,
+    /// Recent output per terminal, so a window opened later (a detached terminal) can show what was already printed.
+    history: Arc<Mutex<HashMap<String, TerminalHistory>>>,
     sftp_jobs: Arc<Mutex<HashMap<String, Child>>>,
     debug: Arc<Mutex<DebugConfig>>,
 }
@@ -50,6 +56,15 @@ struct TunnelManager {
 struct TerminalEvent {
     id: String,
     data: String,
+    /// Bytes this terminal has printed up to and including `data` (0 on exit events). A window that loaded the history up to N
+    /// bytes ignores events whose total is N or less, because that output is already in the history it loaded.
+    total: u64,
+}
+
+#[derive(Serialize)]
+struct TerminalReplay {
+    data: String,
+    total: u64,
 }
 
 #[derive(Clone, Serialize)]
@@ -2533,6 +2548,14 @@ fn start_terminal(
     let processes = Arc::clone(&state.processes);
     let query_process = Arc::clone(&shared);
     let debug = Arc::clone(&state.debug);
+    let history = Arc::clone(&state.history);
+    // A restarted terminal keeps its running byte count (see TerminalHistory::reset), so a detached window never mistakes new output for old.
+    history
+        .lock()
+        .map_err(|_| "history poisoned")?
+        .entry(id.clone())
+        .or_default()
+        .reset();
     debug_write(
         &debug,
         "terminal",
@@ -2573,9 +2596,18 @@ fn start_terminal(
                 if data.is_empty() {
                     continue;
                 }
+                let total = history
+                    .lock()
+                    .map(|mut all| {
+                        all.entry(id.clone())
+                            .or_default()
+                            .push(&data, HISTORY_LIMIT)
+                    })
+                    .unwrap_or(0);
                 let event = TerminalEvent {
                     id: id.clone(),
                     data: String::from_utf8_lossy(&data).into_owned(),
+                    total,
                 };
                 let _ = app.emit("terminal-output", event);
             }
@@ -2591,6 +2623,7 @@ fn start_terminal(
                     TerminalEvent {
                         id: id.clone(),
                         data: String::new(),
+                        total: 0,
                     },
                 );
                 if let Some(path) = askpass_path.as_ref() {
@@ -2604,6 +2637,7 @@ fn start_terminal(
                     TerminalEvent {
                         id: id.clone(),
                         data: format!("\r\n[terminal read error: {error}]\r\n"),
+                        total: u64::MAX,
                     },
                 );
                 if let Ok(mut active) = recordings.lock() {
@@ -2617,6 +2651,7 @@ fn start_terminal(
                     TerminalEvent {
                         id: id.clone(),
                         data: String::new(),
+                        total: 0,
                     },
                 );
                 if let Some(path) = askpass_path.as_ref() {
@@ -2689,8 +2724,74 @@ fn resume_terminal(state: State<'_, TerminalManager>, id: String) -> Result<(), 
     result
 }
 
+/// Opens a terminal that is already running in its own window. The terminal keeps running in the main window's tab (which stays mounted
+/// but shows a placeholder); the new window replays the held output and then follows the live events. Closing the window gives the
+/// terminal back to the tab. Fails if the terminal is not running or already has a window.
+// `async` on purpose: building a window from a synchronous command runs on the main thread, and on Windows the new webview then never
+// finishes loading (it stays on about:blank).
 #[tauri::command]
-fn close_terminal(state: State<'_, TerminalManager>, id: String) -> Result<(), String> {
+async fn detach_terminal(
+    app: AppHandle,
+    state: State<'_, TerminalManager>,
+    id: String,
+    title: String,
+) -> Result<(), String> {
+    let label = detach::window_label(&id).ok_or("invalid terminal id")?;
+    if !state
+        .processes
+        .lock()
+        .map_err(|_| "terminal manager poisoned")?
+        .contains_key(&id)
+    {
+        return Err("that terminal is not running".into());
+    }
+    if let Some(existing) = app.get_webview_window(&label) {
+        let _ = existing.set_focus();
+        return Ok(());
+    }
+    let url = format!("index.html?detached={id}");
+    let title: String = title.chars().filter(|c| !c.is_control()).take(80).collect();
+    WebviewWindowBuilder::new(&app, label, WebviewUrl::App(url.into()))
+        .title(format!("{title} - Moraxterm"))
+        .inner_size(900.0, 600.0)
+        .build()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Closes a terminal's separate window, if it has one; the terminal itself keeps running in its tab.
+#[tauri::command]
+fn attach_terminal(app: AppHandle, id: String) -> Result<(), String> {
+    let label = detach::window_label(&id).ok_or("invalid terminal id")?;
+    if let Some(window) = app.get_webview_window(&label) {
+        window.destroy().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// The output a terminal has printed so far (capped), and the byte count it corresponds to, for a window that attaches late.
+#[tauri::command]
+fn terminal_replay(
+    state: State<'_, TerminalManager>,
+    id: String,
+) -> Result<TerminalReplay, String> {
+    let all = state.history.lock().map_err(|_| "history poisoned")?;
+    let (data, total) = all.get(&id).map(|h| h.snapshot()).unwrap_or_default();
+    Ok(TerminalReplay { data, total })
+}
+
+#[tauri::command]
+fn close_terminal(
+    app: AppHandle,
+    state: State<'_, TerminalManager>,
+    id: String,
+) -> Result<(), String> {
+    // A terminal that is closed takes its separate window with it.
+    if let Some(label) = detach::window_label(&id) {
+        if let Some(window) = app.get_webview_window(&label) {
+            let _ = window.destroy();
+        }
+    }
     let process = state
         .processes
         .lock()
@@ -2731,7 +2832,24 @@ pub fn run() {
     tauri::Builder::default()
         .manage(TerminalManager::default())
         .manage(TunnelManager::default())
+        .on_window_event(|window, event| {
+            if let WindowEvent::Destroyed = event {
+                let label = window.label();
+                if let Some(id) = detach::terminal_id_of_label(label) {
+                    // The separate window is gone: tell the main window so its tab shows the terminal again.
+                    let _ = window
+                        .app_handle()
+                        .emit("terminal-attached", id.to_string());
+                } else if label == "main" {
+                    // Separate terminal windows must not keep the application alive once the main window is closed.
+                    window.app_handle().exit(0);
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
+            detach_terminal,
+            attach_terminal,
+            terminal_replay,
             list_sessions,
             import_sessions,
             export_sessions,

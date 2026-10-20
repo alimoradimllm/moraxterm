@@ -28,6 +28,8 @@ interface Tab {
   session: Session;
   state: 'starting' | 'connected' | 'failed' | 'exited';
   error?: string;
+  /** True while the terminal is shown in its own window; the tab keeps its xterm mounted but shows a placeholder. */
+  detached?: boolean;
 }
 
 const remoteTypes = new Set(['SSH', 'TELNET', 'RDP', 'Rdp', 'VNC', 'Vnc', 'WSL', 'Serial', 'Unix', 'Shell']);
@@ -83,9 +85,13 @@ function SessionSidebar({ sessions, folders, activeId, onOpen, onHome, onEdit, o
   </aside>;
 }
 
-function TerminalPane({ tab, settings, multiExec, excluded, execStatus, onToggleExclude, onInput, onState, onError, onClose }: { tab: Tab; settings: UiSettings; multiExec: boolean; excluded: boolean; execStatus?: 'sent' | 'failed'; onToggleExclude: () => void; onInput: (id: string, data: string) => void; onState: (state: Tab['state']) => void; onError: (error: string) => void; onClose: () => void }) {
+function TerminalPane({ tab, settings, multiExec, excluded, execStatus, onToggleExclude, onInput, onState, onError, onClose, onDetach, onAttach }: { tab: Tab; settings: UiSettings; multiExec: boolean; excluded: boolean; execStatus?: 'sent' | 'failed'; onToggleExclude: () => void; onInput: (id: string, data: string) => void; onState: (state: Tab['state']) => void; onError: (error: string) => void; onClose: () => void; onDetach: () => void; onAttach: () => void }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
+  // While the terminal is in its own window that window decides the PTY size, so this pane must not resize it.
+  const detachedRef = useRef(false);
+  detachedRef.current = Boolean(tab.detached);
+  const syncRef = useRef<() => void>(() => {});
   useEffect(() => {
     if (!hostRef.current) return;
     const terminal = new Terminal({
@@ -125,7 +131,8 @@ function TerminalPane({ tab, settings, multiExec, excluded, execStatus, onToggle
     const session = remoteTypes.has(tab.session.session_type) ? tab.session : null;
     // The first fit() runs before the native process exists, so its resize is dropped. Re-send the real size once
     // the process has started, and keep the PTY in sync whenever the pane is resized (window, split, sidebar).
-    const syncSize = () => { fit.fit(); tauriInvoke?.('resize_terminal', { id, cols: terminal.cols, rows: terminal.rows }).catch(() => {}); };
+    const syncSize = () => { fit.fit(); if (detachedRef.current) return; tauriInvoke?.('resize_terminal', { id, cols: terminal.cols, rows: terminal.rows }).catch(() => {}); };
+    syncRef.current = syncSize;
     let pending: number | undefined;
     const observer = new ResizeObserver(() => { window.clearTimeout(pending); pending = window.setTimeout(syncSize, 50); });
     observer.observe(hostRef.current);
@@ -141,6 +148,12 @@ function TerminalPane({ tab, settings, multiExec, excluded, execStatus, onToggle
     };
   }, []);
   useEffect(() => { if (terminalRef.current) terminalRef.current.options.theme = terminalThemeFor(settings.terminalTheme); }, [settings.terminalTheme]);
+  // Back in the tab: take the PTY size from this pane again.
+  useEffect(() => { if (!tab.detached) syncRef.current(); }, [tab.detached]);
+  const detach = async () => {
+    try { await tauriInvoke?.('detach_terminal', { id: tab.id, title: tab.session.name }); onDetach(); }
+    catch (error) { onError(error instanceof Error ? error.message : String(error)); }
+  };
   const reconnect = async () => {
     onState('starting');
     try {
@@ -153,9 +166,12 @@ function TerminalPane({ tab, settings, multiExec, excluded, execStatus, onToggle
     try { await tauriInvoke?.('resume_terminal', { id: tab.id }); onState('connected'); } catch { onState('failed'); }
   };
   return <div className="react-terminal-pane">
-    <div className="react-pane-bar"><span><ProtocolIcon type={tab.session.session_type} /> {tab.session.name}</span><span className="react-terminal-actions">{multiExec && <label className="react-exclude"><input type="checkbox" checked={excluded} onChange={onToggleExclude} /> Exclude {tab.session.name} from MultiExec mode</label>}{multiExec && !excluded && execStatus && <span className={`react-exec-status ${execStatus}`}>{execStatus === 'sent' ? '✓ sent' : '✕ failed'}</span>}<span className={`react-state ${tab.state}`}>{tab.state}</span><button onClick={resume} disabled={tab.state === 'starting'} title="Resume terminal process">Resume</button><button onClick={reconnect} title="Reconnect terminal">Reconnect</button><button onClick={onClose} title="Close terminal">Close</button></span></div>
+    <div className="react-pane-bar"><span><ProtocolIcon type={tab.session.session_type} /> {tab.session.name}</span><span className="react-terminal-actions">{multiExec && <label className="react-exclude"><input type="checkbox" checked={excluded} onChange={onToggleExclude} /> Exclude {tab.session.name} from MultiExec mode</label>}{multiExec && !excluded && execStatus && <span className={`react-exec-status ${execStatus}`}>{execStatus === 'sent' ? '✓ sent' : '✕ failed'}</span>}<span className={`react-state ${tab.state}`}>{tab.state}</span><button onClick={resume} disabled={tab.state === 'starting'} title="Resume terminal process">Resume</button><button onClick={reconnect} title="Reconnect terminal">Reconnect</button><button onClick={tab.detached ? onAttach : detach} disabled={tab.state === 'starting' || tab.state === 'failed'} title={tab.detached ? 'Close the separate window and show the terminal here again' : 'Open this terminal in its own window'}>{tab.detached ? 'Return' : 'Detach'}</button><button onClick={onClose} title="Close terminal">Close</button></span></div>
     {tab.error && <div className="react-terminal-error" role="alert">{tab.error}</div>}
-    <div className="react-terminal-host" style={{ background: terminalThemeFor(settings.terminalTheme).background }} ref={hostRef} tabIndex={0} onPointerDown={() => terminalRef.current?.focus()} onKeyDown={() => terminalRef.current?.focus()} />
+    <div className="react-terminal-body">
+      <div className="react-terminal-host" style={{ background: terminalThemeFor(settings.terminalTheme).background }} ref={hostRef} tabIndex={0} onPointerDown={() => terminalRef.current?.focus()} onKeyDown={() => terminalRef.current?.focus()} />
+      {tab.detached && <div className="react-detached-note" role="status"><strong>{tab.session.name}</strong> is open in a separate window.<button onClick={onAttach}>Return to this tab</button></div>}
+    </div>
   </div>;
 }
 
@@ -195,6 +211,12 @@ export default function App() {
       return remaining;
     });
   };
+  const setDetached = (id: string, detached: boolean) => setTabs(current => current.map(item => item.id === id && Boolean(item.detached) !== detached ? { ...item, detached } : item));
+  // The native side announces when a terminal's separate window is gone (closed by the user or returned), so the tab can show it again.
+  useEffect(() => {
+    const unlisten = tauriListen?.('terminal-attached', event => { const id = (event as { payload?: unknown }).payload; if (typeof id === 'string') setDetached(id, false); });
+    return () => { Promise.resolve(unlisten).then(fn => fn?.()); };
+  }, []);
   const splitWorkspace = () => {
     if (!activeId) return;
     const next = tabs.find(tab => tab.id !== activeId);
@@ -312,7 +334,7 @@ export default function App() {
               const shown = !!active && (tab.id === active.id || tab.id === split?.id);
               // Every tab stays mounted: unmounting a TerminalPane closes its native process, so hiding is the only safe way to switch tabs or open a panel.
               return <div key={tab.id} className="react-pane-slot" style={{ display: shown ? 'flex' : 'none', order: tab.id === split?.id ? 2 : 0 }}>
-                <TerminalPane tab={tab} settings={uiSettings} multiExec={multiExec} excluded={excluded.has(tab.id)} execStatus={execStatus[tab.id]} onToggleExclude={() => toggleExclude(tab.id)} onInput={(id, data) => latest.current.sendInput(id, data)} onClose={() => closeTab(tab.id)} onError={error => setTabs(current => current.map(item => item.id === tab.id ? { ...item, error } : item))} onState={state => setTabs(current => current.map(item => item.id === tab.id ? { ...item, state, ...(state === 'starting' ? { error: undefined } : {}) } : item))} />
+                <TerminalPane tab={tab} settings={uiSettings} multiExec={multiExec} excluded={excluded.has(tab.id)} execStatus={execStatus[tab.id]} onToggleExclude={() => toggleExclude(tab.id)} onInput={(id, data) => latest.current.sendInput(id, data)} onClose={() => closeTab(tab.id)} onDetach={() => setDetached(tab.id, true)} onAttach={() => { tauriInvoke?.('attach_terminal', { id: tab.id }).catch(() => {}); setDetached(tab.id, false); }} onError={error => setTabs(current => current.map(item => item.id === tab.id ? { ...item, error } : item))} onState={state => setTabs(current => current.map(item => item.id === tab.id ? { ...item, state, ...(state === 'starting' ? { error: undefined } : {}) } : item))} />
               </div>;
             })}
             {split && <div className="react-pane-divider" aria-hidden="true" style={{ order: 1 }} />}
