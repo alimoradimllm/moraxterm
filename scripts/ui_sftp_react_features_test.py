@@ -23,6 +23,16 @@ try:
     js("[...document.querySelectorAll('button')].find(b=>b.innerText.trim()=='Refresh')?.click()"); time.sleep(5)
     rows = int(js("document.querySelectorAll('.react-sftp-row').length"));
     if rows == 0: raise AssertionError(json.dumps({"listing_rows":rows,"footer":js("document.querySelector('.react-sftp-footer')?.innerText"),"output":js("document.querySelector('.react-sftp-list')?.innerText")}))
-    print(json.dumps({"controls":result,"listing_rows":rows,"react_sftp_features":"PASS"}, indent=2))
+    before = js("document.querySelector('.react-sftp-path input')?.value")
+    dirs = int(js("document.querySelectorAll('button.react-sftp-row').length"))
+    nav = False
+    if dirs:
+        js("document.querySelector('button.react-sftp-row')?.click()"); time.sleep(3)
+        after = js("document.querySelector('.react-sftp-path input')?.value")
+        nav = bool(after and after != before and js("[...document.querySelectorAll('button')].some(b=>b.innerText.trim()=='Up')"))
+        js("[...document.querySelectorAll('button')].find(b=>b.innerText.trim()=='Up')?.click()"); time.sleep(2)
+    checked = bool(js("(()=>{const x=[...document.querySelectorAll('label')].find(x=>x.innerText.includes('Resume transfer'))?.querySelector('input'); if(!x)return false; x.click(); return x.checked})()"))
+    assert nav and checked, {"nav":nav,"resume":checked}
+    print(json.dumps({"controls":result,"listing_rows":rows,"directory_navigation":nav,"resume_toggle":checked,"react_sftp_features":"PASS"}, indent=2))
 finally:
     proc.terminate(); proc.wait(timeout=10)
