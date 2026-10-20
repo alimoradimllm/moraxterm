@@ -85,6 +85,20 @@ impl Session {
         );
     }
 
+    fn require_more(&self, needle: &str, at_least: usize, seconds: u64) {
+        let deadline = Instant::now() + Duration::from_secs(seconds);
+        while Instant::now() < deadline {
+            if self.text().matches(needle).count() >= at_least {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        panic!(
+            "did not see at least {at_least} occurrences of {needle:?} within {seconds}s; saw {}",
+            self.text().matches(needle).count()
+        );
+    }
+
     fn finish(self) {
         let _ = self.process.lock().unwrap().kill();
     }
@@ -195,6 +209,32 @@ fn cmd_ctrl_c_interrupts_ping() {
     let s = Session::start("cmd.exe", &[], &[]);
     s.send("ping -n 60 127.0.0.1\r");
     s.require("Reply from 127.0.0.1", 10);
+    s.send("\x03");
+    s.require("Control-C", 10);
+    s.send("echo BACK_%OS%\r");
+    s.require("BACK_Windows_NT", 10);
+    s.finish();
+}
+
+#[test]
+fn ctrl_break_shows_interim_stats_without_stopping_ping_then_ctrl_c_stops_it() {
+    // Plain byte 0x03 is Ctrl+C; there is no byte for Ctrl+Break, so this drives
+    // TerminalProcess::send_ctrl_break (AttachConsole + GenerateConsoleCtrlEvent).
+    // Windows `ping.exe` treats the two signals differently on purpose: Ctrl+C stops
+    // it outright (see cmd_ctrl_c_interrupts_ping above), but Ctrl+Break only prints
+    // the running statistics and keeps pinging. That asymmetry is exactly what proves
+    // send_ctrl_break delivers a real, distinct CTRL_BREAK_EVENT and not another
+    // Ctrl+C: a bug that fired CTRL_C_EVENT instead would stop ping here too.
+    let s = Session::start("cmd.exe", &[], &[]);
+    s.send("ping -n 60 127.0.0.1\r");
+    s.require("Reply from 127.0.0.1", 10);
+    let replies_before_break = s.text().matches("Reply from 127.0.0.1").count();
+    s.process.lock().unwrap().send_ctrl_break().unwrap();
+    s.require("Control-Break", 10);
+    s.require("Ping statistics for 127.0.0.1", 5);
+    // Ping must still be the foreground process answering further replies, not cmd;
+    // an "echo" sent now would otherwise queue unread until ping's own 60 pings end.
+    s.require_more("Reply from 127.0.0.1", replies_before_break + 1, 10);
     s.send("\x03");
     s.require("Control-C", 10);
     s.send("echo BACK_%OS%\r");

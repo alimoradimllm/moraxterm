@@ -11,7 +11,21 @@ extern "system" {
         handler: Option<unsafe extern "system" fn(u32) -> i32>,
         add: i32,
     ) -> i32;
+    fn AttachConsole(process_id: u32) -> i32;
+    fn FreeConsole() -> i32;
+    fn GenerateConsoleCtrlEvent(ctrl_event: u32, process_group_id: u32) -> i32;
 }
+
+#[cfg(windows)]
+const CTRL_BREAK_EVENT: u32 = 1;
+
+/// `AttachConsole`/`FreeConsole` (used by `send_ctrl_break`) change which console this whole
+/// process is attached to, not just the calling thread. Spawning a new child at the same moment
+/// races with that and can leave the new child's console handles in a bad state. This lock keeps
+/// "attach to another console to signal it" and "create a new console for a new child" mutually
+/// exclusive within the process; it does not affect reads/writes on an already-running child.
+#[cfg(windows)]
+static SPAWN_OR_CTRL_BREAK_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Windows stores "ignore Ctrl+C" as an inheritable per-process flag. If whatever launched the
 /// application had it set (some shells, CI runners and automation harnesses do), every terminal
@@ -54,6 +68,8 @@ impl TerminalProcess {
         cwd: Option<&str>,
     ) -> anyhow::Result<Self> {
         restore_default_ctrl_c_handling();
+        #[cfg(windows)]
+        let _spawn_guard = SPAWN_OR_CTRL_BREAK_LOCK.lock().unwrap();
         let system = native_pty_system();
         let pair = system.openpty(PtySize {
             rows: 24,
@@ -144,6 +160,48 @@ impl TerminalProcess {
     pub fn kill(&mut self) -> anyhow::Result<()> {
         self.child.kill()?;
         Ok(())
+    }
+
+    /// Delivers Ctrl+Break to the child. Unlike Ctrl+C (byte 0x03), Windows has no ASCII
+    /// byte for Ctrl+Break: the classic console input stream only recognizes Ctrl+C, and
+    /// ConPTY's VT input stream has no key-event path that reaches a hidden ConPTY console
+    /// (tried first; the console host reacted to the escape sequence itself but the signal
+    /// never reached the child). The reliable way is the same one general Windows tooling
+    /// uses to signal another process's console: briefly attach this process to the
+    /// child's console and call `GenerateConsoleCtrlEvent` with the child's own process
+    /// id as the target process group (ConPTY makes the child the root of a new console,
+    /// so its process group id equals its pid). Using that specific id, rather than 0,
+    /// means the event is not also delivered to this process.
+    #[cfg(windows)]
+    pub fn send_ctrl_break(&mut self) -> anyhow::Result<()> {
+        let pid = self
+            .child
+            .process_id()
+            .ok_or_else(|| anyhow::anyhow!("terminal process has no pid"))?;
+        let _guard = SPAWN_OR_CTRL_BREAK_LOCK.lock().unwrap();
+        unsafe {
+            FreeConsole();
+            if AttachConsole(pid) == 0 {
+                let err = std::io::Error::last_os_error();
+                anyhow::bail!("AttachConsole({pid}) failed: {err}");
+            }
+            let sent = GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid);
+            let err = if sent == 0 {
+                Some(std::io::Error::last_os_error())
+            } else {
+                None
+            };
+            FreeConsole();
+            if let Some(err) = err {
+                anyhow::bail!("GenerateConsoleCtrlEvent failed: {err}");
+            }
+        }
+        Ok(())
+    }
+
+    #[cfg(not(windows))]
+    pub fn send_ctrl_break(&mut self) -> anyhow::Result<()> {
+        anyhow::bail!("Ctrl+Break is not available on this platform")
     }
 
     pub fn write(&mut self, data: &[u8]) -> anyhow::Result<()> {

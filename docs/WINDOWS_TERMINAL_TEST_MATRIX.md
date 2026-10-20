@@ -31,7 +31,7 @@ items.
 | Ctrl+C | PTY PASS | Interrupts `ping` in `cmd.exe` and `Start-Sleep` in PowerShell; shell stays usable. Desktop app not tested |
 | Ctrl+D/EOF | PTY PASS (Windows semantics) | Ctrl+Z then Enter ends `sort` input in `cmd.exe`; Ctrl+D is not EOF in Windows consoles |
 | Ctrl+Z/job control | NOT SUPPORTED ON WINDOWS | Must report limitation, not emulate Unix behavior |
-| Ctrl+Break | NOT TESTED | |
+| Ctrl+Break | PTY PASS | `ctrl_break_shows_interim_stats_without_stopping_ping_then_ctrl_c_stops_it`: `TerminalProcess::send_ctrl_break` (AttachConsole + `GenerateConsoleCtrlEvent`) reproduces the real asymmetry versus Ctrl+C in `ping.exe` (prints interim stats, keeps running); not wired into frontend keyboard handling or a Tauri command yet, and desktop app not tested |
 | Paste | PTY PASS | Three pasted lines each execute (`paste_of_multiple_lines_executes_each_line`); bracketed paste and the xterm.js paste path not tested |
 | `vim` alternate screen | PTY PASS | Git-for-Windows `vim.exe`: enters and leaves `?1049` alternate screen |
 | `top`/`htop` alternate screen | PTY PASS for `less`; `top` does not use it | procps `top` in Debian WSL draws in place without `?1049h`; the alternate-screen path is covered with `less` over WSL. `htop` not tested |
@@ -41,7 +41,7 @@ items.
 
 ## PTY-level automated coverage (2026-10-17)
 
-`rust-core/tests/windows_pty_matrix.rs` drives real `cmd.exe`, PowerShell, `vim.exe`, and Debian WSL through `TerminalProcess` (ConPTY) and asserts on the bytes returned: 12 tests, all passing under plain `cargo test`. "PTY PASS" above means exactly this; it proves the Rust PTY layer, not the xterm.js renderer, keyboard mapping, or the installed desktop app. Those rows stay open until checked in the desktop build.
+`rust-core/tests/windows_pty_matrix.rs` drives real `cmd.exe`, PowerShell, `vim.exe`, and Debian WSL through `TerminalProcess` (ConPTY) and asserts on the bytes returned: 15 tests, all passing under plain `cargo test`. "PTY PASS" above means exactly this; it proves the Rust PTY layer, not the xterm.js renderer, keyboard mapping, or the installed desktop app. Those rows stay open until checked in the desktop build.
 
 Findings recorded while writing the suite:
 
