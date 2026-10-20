@@ -117,6 +117,12 @@ fn credential_entry(service: &str, account: &str) -> Result<keyring::Entry, Stri
         .map_err(|error| format!("credential store unavailable: {error}"))
 }
 
+#[tauri::command]
+fn ssh_public_key_plan(private_key: String) -> Result<Vec<String>, String> {
+    let session = moraxterm_core::Session { private_key, ..Default::default() };
+    session.public_key_export_plan().map(|plan| plan.argv).map_err(|error| error.to_string())
+}
+
 fn identity_entry(name: &str, kind: &str) -> Result<keyring::Entry, String> {
     let name = name.trim();
     let kind = kind.trim().to_ascii_lowercase();
@@ -3025,6 +3031,7 @@ pub fn run() {
             ssh_agent_status,
             credential_store,
             credential_delete,
+            ssh_public_key_plan,
             identity_status,
             identity_store,
             identity_delete,

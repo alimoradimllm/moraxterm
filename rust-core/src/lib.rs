@@ -171,6 +171,8 @@ pub struct Session {
     #[serde(default)]
     pub private_key: String,
     #[serde(default)]
+    pub certificate_path: String,
+    #[serde(default)]
     pub environment: std::collections::HashMap<String, String>,
     #[serde(default)]
     pub startup_command: String,
@@ -311,6 +313,13 @@ impl Session {
             check_target("private_key", self.private_key.trim())?;
             argv.extend(["-i".into(), self.private_key.trim().to_string().into()]);
         }
+        if !self.certificate_path.trim().is_empty() {
+            check_target("certificate_path", self.certificate_path.trim())?;
+            argv.extend([
+                "-o".into(),
+                format!("CertificateFile={}", self.certificate_path.trim()),
+            ]);
+        }
         // `--` ends option parsing, so the destination can never be taken for an option even if the checks above change.
         argv.push("--".into());
         argv.push(format!("{}@{}", self.username.trim(), self.host.trim()));
@@ -348,6 +357,19 @@ impl Session {
             argv.push(self.port.to_string());
         }
         Ok(CommandPlan::new(argv))
+    }
+
+    pub fn public_key_export_plan(&self) -> Result<CommandPlan, ValidationError> {
+        if self.private_key.trim().is_empty() {
+            return Err(ValidationError::EmptyHost);
+        }
+        check_target("private_key", self.private_key.trim())?;
+        Ok(CommandPlan::new(vec![
+            "ssh-keygen".into(),
+            "-y".into(),
+            "-f".into(),
+            self.private_key.trim().into(),
+        ]))
     }
 }
 
