@@ -25,25 +25,51 @@ export default function SessionEditor({ session, folders = [], onSave, onCancel 
   const update = <K extends keyof Session>(key: K, value: Session[K]) => setDraft(current => ({ ...current, [key]: value }));
   const isSsh = draft.session_type === 'SSH';
   const isProtocol = ['WSL', 'Serial', 'Telnet', 'Rdp', 'Vnc', 'Unix'].includes(draft.session_type);
+  const identityName = draft.identity_name?.trim() ?? '';
   const credentialAccount = `${draft.username?.trim() ?? ''}@${draft.host?.trim() ?? ''}:${draft.port || 22}`;
-  const credentialArgs = { service: 'com.moraxterm.ssh', account: credentialAccount };
+  const credentialArgs = identityName ? { name: identityName, kind: 'password' } : { service: 'com.moraxterm.ssh', account: credentialAccount };
   const checkCredential = async () => {
     if (!draft.username?.trim() || !draft.host?.trim()) { setCredentialStatus('Enter username and host first.'); return; }
     setCredentialBusy(true);
-    try { setCredentialStatus(await tauriInvoke<boolean>('credential_status', credentialArgs) ? 'Saved in OS credential storage.' : 'No saved credential.'); }
+    try { setCredentialStatus(await tauriInvoke<boolean>(identityName ? 'identity_status' : 'credential_status', credentialArgs) ? 'Saved in OS credential storage.' : 'No saved credential.'); }
     catch (error) { setCredentialStatus(error instanceof Error ? error.message : String(error)); }
     finally { setCredentialBusy(false); }
   };
   const saveCredential = async () => {
     if (!credentialSecret) { setCredentialStatus('Enter a password to save.'); return; }
     setCredentialBusy(true);
-    try { await tauriInvoke('credential_store', { ...credentialArgs, secret: credentialSecret }); setCredentialSecret(''); update('credential_ref', `keyring:${credentialAccount}`); setCredentialStatus('Saved in OS credential storage.'); }
+    if (identityName && await tauriInvoke<boolean>('identity_status', { name: identityName, kind: 'password' }) && !window.confirm(`Overwrite shared identity “${identityName}”?`)) { setCredentialBusy(false); return; }
+    try { await tauriInvoke(identityName ? 'identity_store' : 'credential_store', { ...credentialArgs, secret: credentialSecret }); setCredentialSecret(''); setCredentialStatus('Saved in OS credential storage.'); }
     catch (error) { setCredentialStatus(error instanceof Error ? error.message : String(error)); }
     finally { setCredentialBusy(false); }
   };
   const deleteCredential = async () => {
     setCredentialBusy(true);
-    try { await tauriInvoke('credential_delete', credentialArgs); update('credential_ref', undefined); setCredentialStatus('Deleted from OS credential storage.'); }
+    if (identityName && !window.confirm(`Delete shared identity “${identityName}”?`)) { setCredentialBusy(false); return; }
+    try { await tauriInvoke(identityName ? 'identity_delete' : 'credential_delete', credentialArgs); setCredentialStatus('Deleted from OS credential storage.'); }
+    catch (error) { setCredentialStatus(error instanceof Error ? error.message : String(error)); }
+    finally { setCredentialBusy(false); }
+  };
+  const savePrivateKeyIdentity = async () => {
+    if (!identityName || !draft.private_key?.trim()) { setCredentialStatus('Enter an identity name and private key path first.'); return; }
+    setCredentialBusy(true);
+    if (await tauriInvoke<boolean>('identity_status', { name: identityName, kind: 'private-key' }) && !window.confirm(`Overwrite shared private-key identity “${identityName}”?`)) { setCredentialBusy(false); return; }
+    try { await tauriInvoke('identity_store', { name: identityName, kind: 'private-key', secret: draft.private_key.trim() }); setCredentialStatus('Private-key identity saved in OS credential storage.'); }
+    catch (error) { setCredentialStatus(error instanceof Error ? error.message : String(error)); }
+    finally { setCredentialBusy(false); }
+  };
+  const checkPrivateKeyIdentity = async () => {
+    if (!identityName) { setCredentialStatus('Enter an identity name first.'); return; }
+    setCredentialBusy(true);
+    try { setCredentialStatus(await tauriInvoke<boolean>('identity_status', { name: identityName, kind: 'private-key' }) ? 'Private-key identity is saved.' : 'No saved private-key identity.'); }
+    catch (error) { setCredentialStatus(error instanceof Error ? error.message : String(error)); }
+    finally { setCredentialBusy(false); }
+  };
+  const deletePrivateKeyIdentity = async () => {
+    if (!identityName) return;
+    setCredentialBusy(true);
+    if (!window.confirm(`Delete shared private-key identity “${identityName}”?`)) { setCredentialBusy(false); return; }
+    try { await tauriInvoke('identity_delete', { name: identityName, kind: 'private-key' }); setCredentialStatus('Private-key identity deleted from OS credential storage.'); }
     catch (error) { setCredentialStatus(error instanceof Error ? error.message : String(error)); }
     finally { setCredentialBusy(false); }
   };
@@ -89,10 +115,12 @@ export default function SessionEditor({ session, folders = [], onSave, onCancel 
       </>}
       {tab === 'SSH' && <>
         <div className="react-editor-note">SSH compatibility settings are stored as typed session metadata and passed to the existing Rust bridge.</div>
-        <label>Saved password<input type="password" value={credentialSecret} onChange={event => setCredentialSecret(event.target.value)} autoComplete="new-password" placeholder="Leave blank to keep unchanged" /></label>
+        <label>Identity name<input value={draft.identity_name ?? ''} onChange={event => update('identity_name', event.target.value || undefined)} placeholder="e.g. production-admin" autoComplete="off" /></label>
+        <label>Saved password / key passphrase<input type="password" value={credentialSecret} onChange={event => setCredentialSecret(event.target.value)} autoComplete="new-password" placeholder="Leave blank to keep unchanged" /></label>
         <div className="react-editor-actions"><button disabled={credentialBusy} onClick={saveCredential}>Save password</button><button disabled={credentialBusy} onClick={checkCredential}>Check saved</button><button disabled={credentialBusy} onClick={deleteCredential}>Delete saved</button></div>
         <div className="react-editor-note">{credentialStatus} Passwords are stored only in the operating system credential manager, never in the session record.</div>
         <label>Private key path<input value={draft.private_key ?? ''} onChange={event => update('private_key', event.target.value || undefined)} placeholder="C:\\Users\\you\\.ssh\\id_ed25519" autoComplete="off" /></label>
+        <div className="react-editor-actions"><button disabled={credentialBusy} onClick={savePrivateKeyIdentity}>Save key identity</button><button disabled={credentialBusy} onClick={checkPrivateKeyIdentity}>Check key identity</button><button disabled={credentialBusy} onClick={deletePrivateKeyIdentity}>Delete key identity</button></div>
         <div className="react-editor-note">Only the path is saved. Private-key bytes and passphrases remain outside Moraxterm session storage.</div>
         <label>Remote shell<select value={draft.remote_shell ?? ''} onChange={event => update('remote_shell', event.target.value || undefined)}><option value="">Server default</option><option value="bash">Bash</option><option value="fish">Fish (requires remote Fish)</option><option value="fish-or-sh">Fish if available, otherwise POSIX sh</option><option value="zsh">Zsh</option><option value="sh">POSIX sh</option></select></label>
         <label className="react-check"><input type="checkbox" checked={draft.ssh_agent_forwarding ?? false} onChange={event => update('ssh_agent_forwarding', event.target.checked)} /> Enable SSH-agent forwarding</label>

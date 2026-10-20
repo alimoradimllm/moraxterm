@@ -117,6 +117,44 @@ fn credential_entry(service: &str, account: &str) -> Result<keyring::Entry, Stri
         .map_err(|error| format!("credential store unavailable: {error}"))
 }
 
+fn identity_entry(name: &str, kind: &str) -> Result<keyring::Entry, String> {
+    let name = name.trim();
+    let kind = kind.trim().to_ascii_lowercase();
+    if name.is_empty() || name.len() > 128 || !matches!(kind.as_str(), "password" | "private-key") {
+        return Err("identity name and kind are required".into());
+    }
+    credential_entry("com.moraxterm.identity", &format!("{kind}:{name}"))
+}
+
+#[tauri::command]
+fn identity_status(name: String, kind: String) -> Result<bool, String> {
+    let entry = identity_entry(&name, &kind)?;
+    match entry.get_password() {
+        Ok(_) => Ok(true),
+        Err(keyring::Error::NoEntry) => Ok(false),
+        Err(error) => Err(format!("identity lookup failed: {error}")),
+    }
+}
+
+#[tauri::command]
+fn identity_store(name: String, kind: String, secret: String) -> Result<(), String> {
+    if secret.is_empty() {
+        return Err("identity secret cannot be empty".into());
+    }
+    identity_entry(&name, &kind)?
+        .set_password(&secret)
+        .map_err(|error| format!("identity save failed: {error}"))
+}
+
+#[tauri::command]
+fn identity_delete(name: String, kind: String) -> Result<bool, String> {
+    match identity_entry(&name, &kind)?.delete_credential() {
+        Ok(()) => Ok(true),
+        Err(keyring::Error::NoEntry) => Ok(false),
+        Err(error) => Err(format!("identity delete failed: {error}")),
+    }
+}
+
 #[tauri::command]
 fn credential_status(service: String, account: String) -> Result<bool, String> {
     let entry = credential_entry(&service, &account)?;
@@ -313,6 +351,12 @@ fn create_ssh_askpass(secret: &str) -> Result<std::path::PathBuf, String> {
     }
     let _ = secret;
     Ok(path)
+}
+
+fn cleanup_askpass(path: &mut Option<std::path::PathBuf>) {
+    if let Some(path) = path.take() {
+        let _ = std::fs::remove_file(path);
+    }
 }
 
 fn chrono_like_timestamp() -> String {
@@ -2139,12 +2183,23 @@ fn start_terminal(
         .map(|value| value.environment.clone())
         .unwrap_or_default();
     let mut askpass_path = None;
+    let mut identity_private_key = None;
     if let Some(ssh) = session
         .as_ref()
         .filter(|value| value.session_type.eq_ignore_ascii_case("SSH"))
     {
-        let account = format!("{}@{}:{}", ssh.username.trim(), ssh.host.trim(), ssh.port);
-        if let Ok(entry) = keyring::Entry::new("com.moraxterm.ssh", &account) {
+        let (service, account) = if ssh.identity_name.trim().is_empty() {
+            (
+                "com.moraxterm.ssh",
+                format!("{}@{}:{}", ssh.username.trim(), ssh.host.trim(), ssh.port),
+            )
+        } else {
+            (
+                "com.moraxterm.identity",
+                format!("password:{}", ssh.identity_name.trim()),
+            )
+        };
+        if let Ok(entry) = keyring::Entry::new(service, &account) {
             if let Ok(secret) = entry.get_password() {
                 let helper = create_ssh_askpass(&secret)?;
                 environment.insert("MORAXTERM_SSH_SECRET".into(), secret);
@@ -2152,6 +2207,17 @@ fn start_terminal(
                 environment.insert("SSH_ASKPASS_REQUIRE".into(), "force".into());
                 environment.insert("DISPLAY".into(), "moraxterm:0".into());
                 askpass_path = Some(helper);
+            }
+        }
+        if !ssh.identity_name.trim().is_empty() && ssh.private_key.trim().is_empty() {
+            if let Ok(entry) = keyring::Entry::new(
+                "com.moraxterm.identity",
+                &format!("private-key:{}", ssh.identity_name.trim()),
+            ) {
+                identity_private_key = entry
+                    .get_password()
+                    .ok()
+                    .filter(|value| !value.trim().is_empty());
             }
         }
     }
@@ -2171,12 +2237,23 @@ fn start_terminal(
     {
         if session.host.trim().is_empty() || session.username.trim().is_empty() || session.port == 0
         {
+            cleanup_askpass(&mut askpass_path);
             return Err("SSH session requires host, username, and a valid port".into());
         }
         if !executable_available(if cfg!(windows) { "ssh.exe" } else { "ssh" }) {
+            cleanup_askpass(&mut askpass_path);
             return Err("SSH client is unavailable: ssh".into());
         }
-        let mut ssh_args = session.ssh_plan().map_err(|error| error.to_string())?.argv;
+        let mut ssh_args = match session.ssh_plan() {
+            Ok(plan) => plan.argv,
+            Err(error) => {
+                cleanup_askpass(&mut askpass_path);
+                return Err(error.to_string());
+            }
+        };
+        if let Some(path) = identity_private_key.as_deref() {
+            ssh_args.extend(["-i".into(), path.to_string()]);
+        }
         if ssh_args.first().is_some_and(|value| value == "ssh") {
             ssh_args.remove(0);
         }
@@ -2519,18 +2596,27 @@ fn start_terminal(
             !working_directory.trim().is_empty()
         ),
     );
-    let mut process = TerminalProcess::spawn_with_env_and_cwd(
+    let mut process = match TerminalProcess::spawn_with_env_and_cwd(
         &program_name,
         &arg_refs,
         &environment,
         Some(&working_directory),
-    )
-    .map_err(|e| {
-        debug_write(&state.debug, "terminal", &format!("spawn failed error={e}"));
-        e.to_string()
-    })?;
+    ) {
+        Ok(process) => process,
+        Err(e) => {
+            cleanup_askpass(&mut askpass_path);
+            debug_write(&state.debug, "terminal", &format!("spawn failed error={e}"));
+            return Err(e.to_string());
+        }
+    };
     debug_write(&state.debug, "terminal", "spawn succeeded");
-    let mut reader = process.take_reader().map_err(|e| e.to_string())?;
+    let mut reader = match process.take_reader() {
+        Ok(reader) => reader,
+        Err(e) => {
+            cleanup_askpass(&mut askpass_path);
+            return Err(e.to_string());
+        }
+    };
     let shared = Arc::new(Mutex::new(process));
     state
         .processes
@@ -2863,6 +2949,9 @@ pub fn run() {
             ssh_agent_status,
             credential_store,
             credential_delete,
+            identity_status,
+            identity_store,
+            identity_delete,
             start_tunnel,
             stop_tunnel,
             xserver_status,
