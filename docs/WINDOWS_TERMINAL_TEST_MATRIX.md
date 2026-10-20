@@ -38,6 +38,7 @@ items.
 | `mc` mouse and alternate screen | NOT TESTED | `mc` not installed in the test distro |
 | Mouse reporting | PASS (installed app, vim ruler proxy) | PTY level: `vim` with `mouse=a` emits `?1000h`/`?1002h`/`?1006h` (enable sequences only). Installed app: `scripts/ui_alt_screen_mouse_test.py` dispatches a real CDP click on a specific on-screen line and confirms vim's ruler shows the cursor moved there (with a negative control against a coincidental match), proving a click travels through xterm.js, `write_terminal`, and ConPTY and back; other mouse modes (drag, scroll, SGR-pixel) and other programs not tested |
 | ANSI/VT-100 compatibility | PARTIAL | ConPTY emits cursor, colour, and private-mode sequences that the tests parse; no conformance suite run |
+| Special-key mapping (arrows, Home/End) | PASS (installed app) | `scripts/ui_keyboard_mapping_test.py` drives real CDP arrow/Home/End key events against `vim` in the real xterm.js pane and confirms each one moves the cursor correctly (via vim's ruler); PageUp/PageDown, Tab, Backspace/Delete, function keys, and other Alt/Ctrl combinations not tested |
 
 ## PTY-level automated coverage (2026-10-17)
 
@@ -78,6 +79,7 @@ Run with `scripts/ui_smoke_test.py` against the exe built from `main` plus the f
 | MultiExec: banner, mirroring, exclude, Multi-paste, Ctrl+Shift+Insert, Exit (`scripts/ui_multiexec_test.py`, 17 checks, 3 local shells) | PASS |
 | `vim` alternate screen entered/exited correctly; mouse click reaches vim through xterm.js (`scripts/ui_alt_screen_mouse_test.py`, 14 checks, 2 runs) | PASS |
 | Right-click pastes the clipboard into a local-shell pane and it runs (`scripts/ui_paste_test.py`, 8 checks including a left-click negative control, 2 runs) | PASS |
+| Arrow keys, Home, End move vim's cursor correctly through the real pane (`scripts/ui_keyboard_mapping_test.py`, 10 checks, 2 runs) | PASS |
 | Clipboard paste into a detached window or an SSH tab | NOT TESTED |
 | Linux `.deb` / `.rpm` (CI, `build-linux.yml`, Ubuntu 24.04): clean-checkout build, 4.46 MB `.deb`, no Windows runtime archive inside, installs in a clean `ubuntu:24.04` container, shared libraries resolve, stays running 8 s under `xvfb` | PASS (headless) |
 | Linux app on a real desktop (window, input, terminal) | NOT TESTED |
