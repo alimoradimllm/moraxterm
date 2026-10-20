@@ -25,18 +25,18 @@ items.
 | `cmd.exe` basic commands | PASS | Verified in v0.1.13 |
 | PowerShell interactive input/output | PTY PASS | `powershell_interactive_input_output`; desktop app not tested |
 | Bash/WSL interactive input/output | PTY PASS | Debian via `wsl.exe`; `wsl_bash_resize_and_alternate_screen`; desktop app not tested |
-| Unicode input/output | PTY PASS | `powershell_unicode_*`: accented, symbol, and CJK characters, 5-UTF-16-unit input length; xterm.js rendering not tested |
+| Unicode input/output | PASS (installed app) | `powershell_unicode_*` at the PTY level; `scripts/ui_smoke_test.py` `unicode_rendered` check confirms accented/CJK text round-trips through the real xterm.js pane in the built exe |
 | Long output and scrolling | PTY PASS (delivery) | 20000 of 20000 numbered lines (149304 bytes) delivered; scrolling/rendering in xterm.js not tested |
-| Resize during command execution | PTY PASS | PowerShell reports 132x43 after resize and 100 columns after a resize mid-command; WSL `stty size` follows 24x80 to 40x120 |
+| Resize during command execution | PASS (installed app) | PTY level: PowerShell reports 132x43 after resize and 100 columns after a resize mid-command; WSL `stty size` follows 24x80 to 40x120. Installed app: `scripts/ui_smoke_test.py` `resize_followed_window` confirms the real OS window resize reaches the shell (141 vs 64 columns observed) |
 | Ctrl+C | PTY PASS | Interrupts `ping` in `cmd.exe` and `Start-Sleep` in PowerShell; shell stays usable. Desktop app not tested |
 | Ctrl+D/EOF | PTY PASS (Windows semantics) | Ctrl+Z then Enter ends `sort` input in `cmd.exe`; Ctrl+D is not EOF in Windows consoles |
 | Ctrl+Z/job control | NOT SUPPORTED ON WINDOWS | Must report limitation, not emulate Unix behavior |
 | Ctrl+Break | PTY PASS | `ctrl_break_shows_interim_stats_without_stopping_ping_then_ctrl_c_stops_it`: `TerminalProcess::send_ctrl_break` (AttachConsole + `GenerateConsoleCtrlEvent`) reproduces the real asymmetry versus Ctrl+C in `ping.exe` (prints interim stats, keeps running); not wired into frontend keyboard handling or a Tauri command yet, and desktop app not tested |
 | Paste | PTY PASS | Three pasted lines each execute (`paste_of_multiple_lines_executes_each_line`); bracketed paste and the xterm.js paste path not tested |
-| `vim` alternate screen | PTY PASS | Git-for-Windows `vim.exe`: enters and leaves `?1049` alternate screen |
+| `vim` alternate screen | PASS (installed app) | PTY level: Git-for-Windows `vim.exe` enters and leaves `?1049` alternate screen. Installed app: `scripts/ui_alt_screen_mouse_test.py` confirms the shell prompt/marker disappear when vim takes the alt screen and the prior main-screen content (not a blank pane) is restored on `:q!` |
 | `top`/`htop` alternate screen | PTY PASS for `less`; `top` does not use it | procps `top` in Debian WSL draws in place without `?1049h`; the alternate-screen path is covered with `less` over WSL. `htop` not tested |
 | `mc` mouse and alternate screen | NOT TESTED | `mc` not installed in the test distro |
-| Mouse reporting | PTY PASS (enable sequences only) | `vim` with `mouse=a` emits `?1000h`/`?1002h`/`?1006h`; click delivery through xterm.js not tested |
+| Mouse reporting | PASS (installed app, vim ruler proxy) | PTY level: `vim` with `mouse=a` emits `?1000h`/`?1002h`/`?1006h` (enable sequences only). Installed app: `scripts/ui_alt_screen_mouse_test.py` dispatches a real CDP click on a specific on-screen line and confirms vim's ruler shows the cursor moved there (with a negative control against a coincidental match), proving a click travels through xterm.js, `write_terminal`, and ConPTY and back; other mouse modes (drag, scroll, SGR-pixel) and other programs not tested |
 | ANSI/VT-100 compatibility | PARTIAL | ConPTY emits cursor, colour, and private-mode sequences that the tests parse; no conformance suite run |
 
 ## PTY-level automated coverage (2026-10-17)
@@ -76,6 +76,7 @@ Run with `scripts/ui_smoke_test.py` against the exe built from `main` plus the f
 | Split view: two independent panes | PASS |
 | Terminal survives opening and closing a panel | PASS (after fix) |
 | MultiExec: banner, mirroring, exclude, Multi-paste, Ctrl+Shift+Insert, Exit (`scripts/ui_multiexec_test.py`, 17 checks, 3 local shells) | PASS |
-| Clipboard paste, mouse reporting in xterm.js, SSH tab | NOT TESTED |
+| `vim` alternate screen entered/exited correctly; mouse click reaches vim through xterm.js (`scripts/ui_alt_screen_mouse_test.py`, 14 checks, 2 runs) | PASS |
+| Clipboard paste, SSH tab | NOT TESTED |
 | Linux `.deb` / `.rpm` (CI, `build-linux.yml`, Ubuntu 24.04): clean-checkout build, 4.46 MB `.deb`, no Windows runtime archive inside, installs in a clean `ubuntu:24.04` container, shared libraries resolve, stays running 8 s under `xvfb` | PASS (headless) |
 | Linux app on a real desktop (window, input, terminal) | NOT TESTED |

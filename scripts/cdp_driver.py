@@ -52,6 +52,10 @@ class App:
             else:
                 self.call("Input.insertText", text=ch)
 
+    def click(self, x, y):
+        self.call("Input.dispatchMouseEvent", type="mousePressed", x=x, y=y, button="left", clickCount=1)
+        self.call("Input.dispatchMouseEvent", type="mouseReleased", x=x, y=y, button="left", clickCount=1)
+
     def shot(self, path):
         import base64
         r = self.call("Page.captureScreenshot", format="png")
