@@ -40,12 +40,12 @@ export default function DetachedTerminal({ id }: { id: string }) {
       setState(current => current === 'exited' ? current : 'live');
       tauriInvoke?.('resize_terminal', { id, cols: terminal.cols, rows: terminal.rows }).catch(() => {});
     }).catch(() => setState('failed'));
-    const data = terminal.onData(value => { tauriInvoke?.('write_terminal', { id, data: value }).catch(() => setState('failed')); });
+    const data = terminal.onData(value => { tauriInvoke?.('detached_input', { id, data: value }).catch(() => setState('failed')); });
     const resize = terminal.onResize(({ cols, rows }) => { tauriInvoke?.('resize_terminal', { id, cols, rows }).catch(() => {}); });
     let pending: number | undefined;
     const observer = new ResizeObserver(() => { window.clearTimeout(pending); pending = window.setTimeout(() => fit.fit(), 50); });
     observer.observe(hostRef.current);
-    const context = async (event: MouseEvent) => { event.preventDefault(); const text = await navigator.clipboard?.readText(); if (text) tauriInvoke?.('write_terminal', { id, data: text }).catch(() => {}); };
+    const context = async (event: MouseEvent) => { event.preventDefault(); const text = await navigator.clipboard?.readText(); if (text) tauriInvoke?.('detached_input', { id, data: text }).catch(() => {}); };
     hostRef.current.addEventListener('contextmenu', context);
     const selection = terminal.onSelectionChange(() => { const text = terminal.getSelection(); if (text) navigator.clipboard?.writeText(text).catch(() => {}); });
     return () => {

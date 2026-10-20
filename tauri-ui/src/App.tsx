@@ -189,7 +189,7 @@ export default function App() {
   const [multiExec, setMultiExec] = useState(false);
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [execStatus, setExecStatus] = useState<Record<string, 'sent' | 'failed'>>({});
-  const latest = useRef<{ sendInput: (id: string, data: string) => void; multiPaste: () => void }>({ sendInput: () => {}, multiPaste: () => {} });
+  const latest = useRef<{ sendInput: (id: string, data: string) => void; detachedInput: (id: string, data: string) => void; multiPaste: () => void }>({ sendInput: () => {}, detachedInput: () => {}, multiPaste: () => {} });
   useEffect(() => { applyAppTheme(uiSettings.appTheme); }, [uiSettings.appTheme]);
   useEffect(() => {
     tauriInvoke?.<Session[]>('list_sessions').then(value => { if (Array.isArray(value) && value.length) setSessions(value); }).catch(() => {});
@@ -291,10 +291,23 @@ export default function App() {
     if (!text || !ids.length) { showNotice(text ? 'No MultiExec target can receive input.' : 'Clipboard is empty or unavailable.'); return; }
     mergeStatus(await broadcast(ids, text));
   };
-  latest.current = { sendInput, multiPaste };
+  const detachedInput = async (sourceId: string, data: string) => {
+    if (!multiExec) return;
+    const ids = mirrorTargets({ on: true, sourceId, tabs, excluded, data }).filter(id => id !== sourceId);
+    const result = await broadcast(ids, data);
+    mergeStatus({ ...result, [sourceId]: 'sent' });
+  };
+  latest.current = { sendInput, detachedInput, multiPaste };
   const toggleExclude = (id: string) => setExcluded(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   const openMultiExec = () => { setMultiExec(true); setNotice(undefined); setPanel('multiexec'); };
   const exitMultiExec = () => { setMultiExec(false); setExecStatus({}); setPanel(current => current === 'multiexec' ? undefined : current); };
+  useEffect(() => {
+    const unlisten = tauriListen?.('detached-terminal-input', event => {
+      const payload = (event as { payload?: { id?: unknown; data?: unknown } }).payload;
+      if (typeof payload?.id === 'string' && typeof payload.data === 'string') latest.current.detachedInput(payload.id, payload.data);
+    });
+    return () => { Promise.resolve(unlisten).then(fn => fn?.()); };
+  }, []);
   useEffect(() => {
     if (!multiExec) return;
     const onKey = (event: KeyboardEvent) => { if (isMultiPasteShortcut(event)) { event.preventDefault(); event.stopPropagation(); latest.current.multiPaste(); } };

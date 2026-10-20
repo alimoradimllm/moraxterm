@@ -160,8 +160,10 @@ Nothing here is claimed as done.
   you detach is replayed as its last 512 KiB of escape codes and can look wrong until it redraws. The
   last normal window size and position are persisted and restored after restart; invalid, corrupt, or
   off-screen geometry is ignored. Verified in the built exe (`ui_detached_geometry_test.py`, 16/16).
-  Only the Windows build was run; a long-running process is unaffected by Detach but not tested across
-  many windows at once.
+  Detached typing and right-click paste route through the main MultiExec router and mirror to selected
+  live tabs; verified in the built exe (`ui_detached_multiexec_test.py`, 7/7). The detached window still
+  does not show MultiExec status or exclusion controls. Only the Windows build was run; a long-running
+  process is unaffected by Detach but not tested across many windows at once.
 - **SFTP progress (#38):** the SFTP pane now starts transfers with `start_sftp_transfer` (not
   blocking), shows a bar with "X of Y (N%)" fed by `sftp-transfer-progress` events, a Cancel
   button, and a failure state. The OpenSSH `sftp` prints no meter on a pipe (probed), so upload

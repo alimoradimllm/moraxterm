@@ -2730,6 +2730,42 @@ fn start_terminal(
     Ok(())
 }
 
+#[derive(Clone, Serialize)]
+struct DetachedInput {
+    id: String,
+    data: String,
+}
+
+/// Detached windows do not own the MultiExec router. Forward their keystrokes to the main React workspace,
+/// which sends the data to the source and every selected live target exactly once.
+#[tauri::command]
+fn detached_input(
+    app: AppHandle,
+    state: State<'_, TerminalManager>,
+    id: String,
+    data: String,
+) -> Result<(), String> {
+    if detach::window_label(&id).is_none() || data.is_empty() {
+        return Err("invalid detached terminal input".into());
+    }
+    // Preserve the detached window's original direct-write behavior. The main React window receives the event below only to
+    // mirror the same bytes to the other selected targets; it must not be responsible for the source shell's write succeeding.
+    let process = state
+        .processes
+        .lock()
+        .map_err(|_| "terminal manager poisoned")?
+        .get(&id)
+        .cloned()
+        .ok_or("terminal not found")?;
+    process
+        .lock()
+        .map_err(|_| "terminal poisoned")?
+        .write(data.as_bytes())
+        .map_err(|e| e.to_string())?;
+    app.emit("detached-terminal-input", DetachedInput { id, data })
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn write_terminal(
     state: State<'_, TerminalManager>,
@@ -2971,6 +3007,7 @@ pub fn run() {
             stop_recording,
             start_terminal,
             write_terminal,
+            detached_input,
             resize_terminal,
             resume_terminal,
             close_terminal,
