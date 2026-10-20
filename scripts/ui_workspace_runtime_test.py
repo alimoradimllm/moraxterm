@@ -38,6 +38,9 @@ try:
     # A connected tab asks before closing; cancel preserves it, confirmation closes it.
     a.eval("document.querySelectorAll('.react-tabs button')[1].querySelector('b').click()"); time.sleep(1)
     res['close_confirmation_appears_for_connected_tab'] = a.eval("document.querySelector('[role=dialog][aria-label=\"Confirm close terminal\"]') !== null") is True
+    a.key(key='Escape', code='Escape', vk=27); time.sleep(.5)
+    res['escape_cancels_and_keeps_connected_tab'] = a.eval("document.querySelector('[role=dialog]') === null && document.querySelectorAll('.react-tabs button').length === 2") is True
+    a.eval("[...document.querySelectorAll('.react-tabs button')][1].querySelector('b').click()"); time.sleep(.5)
     a.eval("[...document.querySelectorAll('[role=dialog] button')].find(b=>b.innerText==='Cancel').click()"); time.sleep(.5)
     res['cancel_keeps_connected_tab'] = a.eval("document.querySelectorAll('.react-tabs button').length") == 2
     a.eval("document.querySelectorAll('.react-tabs button')[1].querySelector('b').click()"); time.sleep(.5)
