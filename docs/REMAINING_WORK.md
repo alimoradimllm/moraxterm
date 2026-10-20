@@ -129,7 +129,7 @@ Nothing here is claimed as done.
   per-target stop button are untested.
 - **Host-key trust (#34):** the scan, fingerprint, approve, refuse-wrong-fingerprint,
   changed-key warning and remove-and-reapprove flow passes 19/19 three times
-  (`ui_hostkey_test.py`, ed25519 only). Open: RSA/ECDSA-only servers, the first-connection
+  (`ui_hostkey_test.py`, ed25519 only). A disposable loopback harness now verifies strict RSA and ECDSA host-key connections (`scripts/disposable_ssh_hostkey_algorithms_test.sh`). Open: the installed UI path on RSA/ECDSA-only servers, the first-connection
   prompt under the `ask` policy (left to OpenSSH in the terminal), and the buttons taking
   about 6 s when the Git/MSYS `ssh-keygen` is first on PATH.
 - **SSH-agent status:** `ssh_agent_status` now runs the `ssh-add` that sits beside the first
