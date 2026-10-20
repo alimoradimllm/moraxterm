@@ -2183,6 +2183,7 @@ fn start_terminal(
         .map(|value| value.environment.clone())
         .unwrap_or_default();
     let mut askpass_path = None;
+    let mut identity_private_key = None;
     if let Some(ssh) = session
         .as_ref()
         .filter(|value| value.session_type.eq_ignore_ascii_case("SSH"))
@@ -2206,6 +2207,17 @@ fn start_terminal(
                 environment.insert("SSH_ASKPASS_REQUIRE".into(), "force".into());
                 environment.insert("DISPLAY".into(), "moraxterm:0".into());
                 askpass_path = Some(helper);
+            }
+        }
+        if !ssh.identity_name.trim().is_empty() && ssh.private_key.trim().is_empty() {
+            if let Ok(entry) = keyring::Entry::new(
+                "com.moraxterm.identity",
+                &format!("private-key:{}", ssh.identity_name.trim()),
+            ) {
+                identity_private_key = entry
+                    .get_password()
+                    .ok()
+                    .filter(|value| !value.trim().is_empty());
             }
         }
     }
@@ -2239,6 +2251,9 @@ fn start_terminal(
                 return Err(error.to_string());
             }
         };
+        if let Some(path) = identity_private_key.as_deref() {
+            ssh_args.extend(["-i".into(), path.to_string()]);
+        }
         if ssh_args.first().is_some_and(|value| value == "ssh") {
             ssh_args.remove(0);
         }
