@@ -229,6 +229,8 @@ pub struct Session {
     #[serde(default)]
     pub ssh_agent_forwarding: bool,
     #[serde(default)]
+    pub x11_forwarding: bool,
+    #[serde(default)]
     pub remote_shell: String,
     #[serde(default)]
     pub favorite: bool,
@@ -301,6 +303,9 @@ impl Session {
         }
         if self.ssh_agent_forwarding {
             argv.extend(["-o".into(), "ForwardAgent=yes".into()]);
+        }
+        if self.x11_forwarding {
+            argv.push("-X".into());
         }
         if !self.private_key.trim().is_empty() {
             check_target("private_key", self.private_key.trim())?;

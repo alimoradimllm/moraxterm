@@ -22,6 +22,14 @@ fn enabled_ssh_agent_forwarding_adds_forward_agent_option() {
 }
 
 #[test]
+fn enabled_x11_forwarding_adds_x_option() {
+    let mut session = Session::ssh("x11", "example.test", "alice");
+    session.x11_forwarding = true;
+    let argv = session.ssh_plan().unwrap().argv;
+    assert!(argv.iter().any(|item| item == "-X"));
+}
+
+#[test]
 fn default_remote_shell_does_not_append_a_command() {
     let session = Session::ssh("test", "example.test", "alice");
     let plan = session.ssh_plan().unwrap();
