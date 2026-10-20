@@ -160,6 +160,12 @@ pub struct Session {
     pub host: String,
     pub username: String,
     pub port: u16,
+    /// Secret-free reference to an OS keychain entry containing a password or key passphrase.
+    #[serde(default)]
+    pub credential_ref: String,
+    /// Local path to a private key. The key material itself is never persisted here.
+    #[serde(default)]
+    pub private_key: String,
     #[serde(default)]
     pub environment: std::collections::HashMap<String, String>,
     #[serde(default)]
@@ -291,6 +297,10 @@ impl Session {
         }
         if self.ssh_agent_forwarding {
             argv.extend(["-o".into(), "ForwardAgent=yes".into()]);
+        }
+        if !self.private_key.trim().is_empty() {
+            check_target("private_key", self.private_key.trim())?;
+            argv.extend(["-i".into(), self.private_key.trim().to_string().into()]);
         }
         // `--` ends option parsing, so the destination can never be taken for an option even if the checks above change.
         argv.push("--".into());

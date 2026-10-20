@@ -20,7 +20,7 @@ It is an independent, clean-room implementation built with [**Tauri 2**](https:/
 
 - 🖥️ **Local shells**: `cmd`, PowerShell, and an embedded Unix (Fish) runtime on Windows; the system shell on Linux.
 - 🗂️ **Saved sessions**: a folder tree backed by SQLite, favorites, recent sessions, import, and sanitized JSON backup and restore.
-- 🔐 **SSH**: structured native-process arguments, ProxyJump, host-key policy, SSH-agent forwarding, and OS keyring credentials (never stored in session records).
+- 🔐 **SSH**: structured native-process arguments, ProxyJump, host-key policy, SSH-agent forwarding, persistent private-key identity paths, and OS keyring credentials (never stored in session records).
 - 📁 **SFTP browser**: list, create, rename, delete, permissions, upload, download, resume, retry, and cancel.
 - 🪟 **Tabs and split view**: duplicate a session and run two terminals side by side.
 - ⇄ **MultiExec**: type once and it goes to every selected terminal, with a persistent banner, Multi-paste (`Ctrl+Shift+Insert`), a per-terminal *Exclude* checkbox, and `✓ sent` / `✕ failed` indicators.
@@ -37,7 +37,7 @@ It is an independent, clean-room implementation built with [**Tauri 2**](https:/
 | ConPTY behaviour: Unicode, resize, `Ctrl+C`, `vim`/`less` alternate screen, 20 000-line output | ✅ Automated PTY tests (`rust-core/tests/windows_pty_matrix.rs`); the same checks in the app are partly done |
 | SFTP commands: list, mkdir, rename, chmod, upload, download, resume, cancel | ✅ Tested against a throwaway local `sshd`; ⚠️ the SFTP screen itself is untested |
 | SSH host-key trust (unknown, approved, changed key; gateway) | ✅ OpenSSH-level harness passes; ⚠️ the in-app flow is untested |
-| SSH login from the app | ⚠️ Not tested end to end |
+| SSH login from the app | ✅ Saved private-key identity verified against a disposable loopback sshd; ⚠️ password/passphrase and SFTP login remain open |
 | WSL, RDP, VNC, Telnet, Serial | ⚠️ Launch planning only, not run |
 | Tunnels, macros, recording, X server | ⚠️ Implemented, not run |
 | Linux `.deb` / `.rpm` | ✅ Built on every change in CI; the `.deb` installs in a clean Ubuntu 24.04 container and stays running under a virtual display. ⚠️ Not published, and nobody has used it on a real Linux desktop |
@@ -48,15 +48,15 @@ The full list of open work is in [`docs/REMAINING_WORK.md`](docs/REMAINING_WORK.
 
 **Windows**: get the latest installer from the [Releases page](https://github.com/alimoradimllm/moraxterm/releases/latest):
 
-- `Moraxterm_0.1.25_x64-setup.exe` (NSIS installer)
-- `Moraxterm_0.1.25_x64_en-US.msi`
+- `Moraxterm_0.1.24_x64-setup.exe` (NSIS installer)
+- `Moraxterm_0.1.24_x64_en-US.msi`
 
 Releases include `SHA256SUMS` with a Sigstore signature (`SHA256SUMS.sig`, `SHA256SUMS.pem`). The installed program is named `moraxterm-linux-ui.exe`, a name kept from the original build pipeline.
 
-**Linux**: the release has a `.deb` (`Moraxterm_0.1.25_amd64.deb`) and an `.rpm` (`Moraxterm-0.1.25-1.x86_64.rpm`), built in CI. They were built and their contents checked, and the `.deb` was installed and started in a clean Ubuntu 24.04 container; they have **not** been run on a real Linux desktop. The `.rpm` was never installed. Install the `.deb` with:
+**Linux**: no package is published yet. Every pull request and push to `main` builds a `.deb` and `.rpm` in CI. Download them from the *Build Linux packages* run under the [Actions tab](https://github.com/alimoradimllm/moraxterm/actions/workflows/build-linux.yml) (artifact `moraxterm-linux-packages`), then:
 
 ```bash
-sudo apt install ./Moraxterm_0.1.25_amd64.deb
+sudo apt install ./Moraxterm_0.1.24_amd64.deb
 ```
 
 ## 🛠️ Build from source
@@ -145,6 +145,9 @@ More: [remaining work](docs/REMAINING_WORK.md) · [compatibility roadmap](docs/M
 ## Recent changes
 
 <!-- RECENT-CHANGES:START -->
+- 2026-10-20 — [Verify saved SSH identities in the built app](docs/changes/2026-10-20-1717-verify-ssh-identity-runtime.md)
+- 2026-10-20 — [Add React SSH identity management controls](docs/changes/2026-10-20-1701-react-ssh-identity-editor.md)
+- 2026-10-20 — [Persist SSH identities with secret-free session metadata](docs/changes/2026-10-20-1658-persistent-ssh-identities.md)
 - 2026-10-20 — [Add a "Status at a glance" summary to the top of REMAINING_WORK.md](docs/changes/2026-10-20-1431-remaining-work-status-at-a-glance.md)
 - 2026-10-20 — [Update the README, AGENTS.md and REMAINING_WORK.md for the published v0.1.25 release](docs/changes/2026-10-20-1110-docs-after-0-1-25-release.md)
 - 2026-10-20 — [Release workflows attach assets to a draft; publishing is a separate, checked step](docs/changes/2026-10-20-1046-release-workflow-draft-then-publish.md)
@@ -152,11 +155,8 @@ More: [remaining work](docs/REMAINING_WORK.md) · [compatibility roadmap](docs/M
 - 2026-10-20 — [Show SFTP transfer progress with a bar and a Cancel button, including uploads](docs/changes/2026-10-20-0048-sftp-upload-progress-meter.md)
 - 2026-10-20 — [Make the SSH-agent status follow the ssh the terminal runs, and explain why an agent is unavailable](docs/changes/2026-10-20-0009-ssh-agent-status-follows-the-terminal-ssh.md)
 - 2026-10-19 — [Make "write the change and update the status docs" a rule the tools enforce, and write it in AGENTS.md for everyone](docs/changes/2026-10-19-2347-docs-rule-every-change-and-status-docs.md)
-- 2026-10-19 — [Bring AGENTS.md and REMAINING_WORK.md up to date with the SSH, host-key, licence and release work](docs/changes/2026-10-19-2331-refresh-status-docs-after-ssh-work.md)
-- 2026-10-19 — [Test the host-key trust flow end to end, and fix three bugs it found](docs/changes/2026-10-19-2247-hostkey-trust-runtime-test.md)
-- 2026-10-19 — [Test MultiExec across real SSH tabs against a throwaway sshd, with a test-only ssh config switch](docs/changes/2026-10-19-1738-ssh-tab-multiexec-test.md)
 
-_46 change file(s) in [docs/changes/](docs/changes/); this list is generated by `scripts/docs_sync.py`._
+_49 change file(s) in [docs/changes/](docs/changes/); this list is generated by `scripts/docs_sync.py`._
 <!-- RECENT-CHANGES:END -->
 
 Every change is recorded as a file in [`docs/changes/`](docs/changes/) and listed here automatically.
