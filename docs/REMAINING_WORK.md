@@ -73,8 +73,9 @@ of full third-party terminal workspace parity.
   opens it with the OS editor; uploading the edited copy remains an explicit
   user action.
 - SFTP transfer fallback now tries structured `scp` invocation when `sftp` cannot
-  be spawned; resumable transfers still require `sftp` and runtime fallback
-  coverage against a disposable target remains open.
+  be spawned; `scripts/disposable_scp_fallback_test.sh` verifies byte-exact
+  upload/download against a disposable target. Forcing the native Tauri
+  `sftp` spawn failure remains open.
 - A migration regression test now covers legacy SQLite payloads and current
   default fields. Broader schema migration fixtures remain open.
 - SSH editing now checks whether a host entry exists in `known_hosts` without
