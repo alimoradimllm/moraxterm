@@ -452,6 +452,12 @@ fn session_database_path() -> Result<PathBuf, String> {
         std::env::var_os("MORAXTERM_DATA_DIR").filter(|value| !value.is_empty())
     {
         PathBuf::from(dir)
+    } else if std::env::var_os("MORAXTERM_PORTABLE").as_deref() == Some(std::ffi::OsStr::new("1")) {
+        std::env::current_exe()
+            .map_err(|e| format!("portable executable path unavailable: {e}"))?
+            .parent()
+            .ok_or("portable executable directory unavailable")?
+            .join("profile")
     } else if cfg!(windows) {
         dirs::data_dir()
             .ok_or("application data directory unavailable")?
