@@ -109,9 +109,9 @@ Nothing here is claimed as done.
   Still open: a written offer of source or hosting the source archives, and a legal
   review.
 - **Themes:** text contrast is measured in all five themes (`scripts/ui_theme_contrast.py`,
-  no text below 4.5:1 after the Light accent fix, #25). Icon-on-tile contrast, borders and
-  focus rings are judged by eye only; the Light terminal theme with real shell output is
-  unchecked.
+  no text below 4.5:1 after the Light accent fix, #25). The Light terminal theme now renders
+  real shell output in the rebuilt executable (`ui_theme_runtime_test.py`, 9/9). Icon-on-tile
+  contrast, borders and focus rings are still judged by eye only.
 - **Folder tree:** real OS mouse drag is unconfirmed. Empty folders are stored only in
   localStorage. Sessions cannot be ordered manually.
 - **Sessions:** no undo after a confirmed delete. A saved SSH, Telnet or VNC session
