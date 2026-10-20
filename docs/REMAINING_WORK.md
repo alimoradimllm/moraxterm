@@ -32,8 +32,8 @@ of full third-party terminal workspace parity.
 - The Session model and typed editor now include RDP resolution/fullscreen/audio and VNC display/view-only/shared-connection settings. Legacy session payloads remain compatible through serde defaults; frontend and native tests pass.
 - The React terminal pane now exposes Resume, Reconnect, and Close lifecycle controls using the existing native commands. Frontend, Tauri tests, and a rebuilt desktop executable pass; installed-app interaction remains subject to the known UIA limitation.
 - The React Session Editor now exposes SSH ProxyJump/gateway and host-key policy fields (`ask`, `strict`, `accept-new`) backed by the existing structured Rust SSH planner. ProxyJump and host-key policy regression coverage passes; frontend, core, and Tauri tests pass. Live authenticated gateway/host-key runtime testing remains open.
-- React workspace split mode now renders two independent terminal panes from the active tab set, with a toolbar toggle, divider, and per-pane lifecycle controls. Frontend, Tauri tests, and a rebuilt desktop executable pass; installed-app split interaction remains open.
-- React workspace duplication now creates a uniquely named copy of the active session tab and starts it as an independent terminal. Frontend, Tauri tests, and a rebuilt desktop executable pass; installed-app duplicate interaction remains open.
+- React workspace split mode now renders two independent terminal panes from the active tab set, with a toolbar toggle, divider, and per-pane lifecycle controls. Frontend, Tauri tests, and the installed executable pass; `ui_workspace_runtime_test.py` verifies split/toggle/divider/two-pane behavior.
+- React workspace duplication now creates a uniquely named copy of the active session tab and starts it as an independent terminal. Frontend, Tauri tests, and the installed executable pass; `ui_workspace_runtime_test.py` verifies unique naming, independent pane startup, and closing the duplicate.
 - v0.1.13 Local Shell runtime verification passed: Windows `cmd.exe` produced
   directory output and an interactive prompt through xterm.js.
 - Local Shell Settings now persist a selector for system default, cmd, PowerShell,
@@ -232,7 +232,7 @@ Nothing here is claimed as done.
 ### Workspace
 
 - Add horizontal panes and draggable pane boundaries. *(Implemented in source; installed-app verification remains open.)*
-- Add tab movement, duplication, and detachment into a separate window. *(Tab movement and duplication implemented; detachment remains open.)*
+- Add tab movement, duplication, and detachment into a separate window. *(Tab movement and duplication are implemented and runtime-verified; detachment remains open.)*
 - Add close confirmation for active connections. *(Implemented in source; installed-app verification remains open.)*
 - Selective MultiExec targets, per-session output, status, and stop controls. *(Implemented; verified in the built exe for local shells and, since #33, across real SSH tabs: mirroring, per-tab exclusion, a stopped tab skipped, sent status. Each target has a Stop button that ends only that terminal; a reconnected target rejoins mirroring.)*
 - Multiple tunnel profiles and concurrent tunnel status/logs. *(Implemented in source with saved profiles, independent start/stop/delete controls, and per-profile status/log text; disposable-target runtime testing remains open.)*
