@@ -297,6 +297,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .react-sftp-path label, .react-sftp-actions label { display: flex; flex: 1; flex-direction: column; gap: 5px; color: var(--muted); font-size: 11px; }
 .react-sftp-actions .react-sftp-check { flex-direction: row; align-items: center; flex: 0 0 auto; }
 .react-transfer-queue { margin-top: 12px; padding: 8px; border: 1px solid var(--line); border-radius: 6px; }
+.react-sftp-drop-zone { margin-top: 12px; padding: 10px; border: 1px dashed var(--accent); border-radius: 6px; color: var(--muted); text-align: center; font-size: 11px; }
 .react-transfer-queue-row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; color: var(--muted); font-size: 11px; }
 .react-transfer-queue-row [data-state="completed"] { color: var(--success, #4ade80); }
 .react-transfer-queue-row [data-state="failed"] { color: var(--danger, #f87171); }

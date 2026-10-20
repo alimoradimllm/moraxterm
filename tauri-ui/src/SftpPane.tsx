@@ -102,6 +102,17 @@ export default function SftpPane({ session, onClose }: SftpPaneProps) {
     if (!jobId) return;
     try { await invoke('cancel_sftp_transfer', { id: jobId }); } catch (error) { setStatus(`Cancel failed: ${String(error)}`); }
   };
+  const dropUpload = async (event: React.DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    const file = (Array.from(event.dataTransfer.files) as Array<File & { path?: string }>)[0];
+    if (!file?.path) { setStatus('Drop a local file from the desktop'); return; }
+    const remote = joinRemotePath(path, file.name);
+    setOperationPath(file.path); setTarget(remote); setBusy(true); setJobId(null); setJobLabel('upload');
+    try {
+      const id = await invoke('start_sftp_transfer', { host, username, port, direction: 'upload', localPath: file.path, remotePath: remote, resume }) as string;
+      setJobId(id); setQueue(items => [...items, { id, label: `upload: ${remote}`, state: 'running' }]); setStatus('upload running…');
+    } catch (error) { setStatus(`Failed: ${String(error)}`); setBusy(false); }
+  };
   const barPercent = meter ? percent(meter.done, meter.total) : null;
 
   return <section className="react-sftp-pane">
@@ -110,6 +121,7 @@ export default function SftpPane({ session, onClose }: SftpPaneProps) {
     <nav className="react-sftp-breadcrumbs" aria-label="Remote path breadcrumbs">{path.split('/').filter(Boolean).map((part, index, parts) => { const crumb = path.startsWith('~') ? `~/${parts.slice(1, index + 1).join('/')}` : `/${parts.slice(0, index + 1).join('/')}`; return <button key={`${crumb}-${index}`} disabled={busy || crumb === path} onClick={() => navigate(crumb)}>{part}</button>; })}</nav>
     <div className="react-sftp-body"><div className="react-sftp-list"><h3>Remote directory</h3>{rows.length ? rows.map((row, index) => row.directory && row.name ? <button className="react-sftp-row" key={`${index}-${row.text}`} onClick={() => navigate(joinRemotePath(path, row.name!))}>{row.text}</button> : <div className="react-sftp-row" key={`${index}-${row.text}`}>{row.text}</div>) : <p className="react-sftp-empty">No listing loaded.</p>}</div>
       <div className="react-sftp-actions"><h3>Operations</h3><label>Path<input value={operationPath} onChange={event => setOperationPath(event.target.value)} placeholder="/remote/file" /></label><label>Target<input value={target} onChange={event => setTarget(event.target.value)} placeholder="/remote/target or local file" /></label><label>Mode<input value={mode} onChange={event => setMode(event.target.value)} /></label><label className="react-sftp-check"><input type="checkbox" checked={resume} onChange={event => setResume(event.target.checked)} /> Resume transfer</label><div className="react-sftp-buttons"><button disabled={busy || !host} onClick={() => operate('mkdir')}>New folder</button><button disabled={busy || !host} onClick={() => operate('rename')}>Rename</button><button disabled={busy || !host} onClick={() => operate('delete')}>Delete</button><button disabled={busy || !host} onClick={() => operate('chmod')}>Permissions</button><button disabled={busy || !host} onClick={() => transfer('upload')}>Upload</button><button disabled={busy || !host} onClick={() => transfer('download')}>Download</button></div>
+        <div className="react-sftp-drop-zone" onDragOver={event => event.preventDefault()} onDrop={dropUpload}>Drop a local file here to prepare an upload</div>
         {queue.length > 0 && <div className="react-transfer-queue"><strong>Transfer queue</strong>{queue.map(item => <div className="react-transfer-queue-row" key={item.id}><span>{item.label}</span><span data-state={item.state}>{item.state}</span></div>)}</div>}
         {jobId && <div className="react-transfer" data-state={running ? 'running' : exit?.success ? 'done' : 'failed'}>
           <div className="react-transfer-bar" role="progressbar" aria-label={`${jobLabel} progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={barPercent ?? (exit?.success ? 100 : undefined)}><span style={{ width: `${exit?.success ? 100 : barPercent ?? 0}%` }} /></div>
