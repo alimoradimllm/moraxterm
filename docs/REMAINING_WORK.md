@@ -233,7 +233,7 @@ Nothing here is claimed as done.
 
 - Add horizontal panes and draggable pane boundaries. *(Implemented in source; installed-app verification remains open.)*
 - Add tab movement, duplication, and detachment into a separate window. *(Tab movement and duplication are implemented and runtime-verified; detachment remains open.)*
-- Add close confirmation for active connections. *(Implemented in source; installed-app verification remains open.)*
+- Add close confirmation for active connections. *(Implemented and verified in the rebuilt executable: connected tabs prompt; Cancel preserves the tab; confirmation closes it; failed/exited tabs close immediately.)*
 - Selective MultiExec targets, per-session output, status, and stop controls. *(Implemented; verified in the built exe for local shells and, since #33, across real SSH tabs: mirroring, per-tab exclusion, a stopped tab skipped, sent status. Each target has a Stop button that ends only that terminal; a reconnected target rejoins mirroring.)*
 - Multiple tunnel profiles and concurrent tunnel status/logs. *(Implemented in source with saved profiles, independent start/stop/delete controls, and per-profile status/log text; disposable-target runtime testing remains open.)*
 - Persist macro libraries with explicit import/export and secure content handling. *(Implemented in source with named local macros, validated JSON import, JSON export, replay, deletion, and bounded storage.)*

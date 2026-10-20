@@ -35,9 +35,14 @@ try:
     res['split_shows_two_panes'] = a.eval("[...document.querySelectorAll('.react-pane-slot')].filter(x=>getComputedStyle(x).display==='flex').length") == 2
     toolbar(a,'Split'); time.sleep(1)
     res['split_toggle_returns_single_pane'] = a.eval("document.querySelector('.react-panes-split') === null") is True
-    # Close the duplicate tab and ensure the original remains usable.
-    a.eval("document.querySelectorAll('.react-tabs button')[1].querySelector('b').click()"); time.sleep(2)
-    res['closing_duplicate_leaves_original'] = a.eval("document.querySelectorAll('.react-tabs button').length") == 1
+    # A connected tab asks before closing; cancel preserves it, confirmation closes it.
+    a.eval("document.querySelectorAll('.react-tabs button')[1].querySelector('b').click()"); time.sleep(1)
+    res['close_confirmation_appears_for_connected_tab'] = a.eval("document.querySelector('[role=dialog][aria-label=\"Confirm close terminal\"]') !== null") is True
+    a.eval("[...document.querySelectorAll('[role=dialog] button')].find(b=>b.innerText==='Cancel').click()"); time.sleep(.5)
+    res['cancel_keeps_connected_tab'] = a.eval("document.querySelectorAll('.react-tabs button').length") == 2
+    a.eval("document.querySelectorAll('.react-tabs button')[1].querySelector('b').click()"); time.sleep(.5)
+    a.eval("[...document.querySelectorAll('[role=dialog] button')].find(b=>b.innerText==='Close terminal').click()"); time.sleep(2)
+    res['confirm_closes_duplicate_and_leaves_original'] = a.eval("document.querySelectorAll('.react-tabs button').length") == 1
     print(json.dumps(res, indent=1)); print('ALL PASS' if all(res.values()) else 'FAILURES: '+', '.join(k for k,v in res.items() if not v))
 finally:
     try:proc.kill()

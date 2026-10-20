@@ -329,3 +329,11 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .react-detached-host { flex: 1; min-height: 0; }
 .react-multiexec-stop, .react-terminal-actions button.react-stop-target { color: #fff; background: #8e2a1b; border: 1px solid #ff8b78; border-radius: 6px; }
 .react-multiexec-stop:disabled { opacity: .4; }
+
+.react-confirm-backdrop { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 20px; background: color-mix(in srgb, #000 58%, transparent); }
+.react-confirm-dialog { width: min(440px, 92vw); padding: 24px; color: var(--text); background: var(--panel); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: 0 24px 80px #0008; }
+.react-confirm-dialog h2 { margin: 0 0 10px; font-size: 18px; }
+.react-confirm-dialog p { margin: 0; color: var(--muted); line-height: 1.5; }
+.react-confirm-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+.react-confirm-actions button { padding: 8px 16px; color: var(--text); background: var(--raised); border: 1px solid var(--line-2); border-radius: 7px; }
+.react-confirm-actions button.danger { color: #fff; background: #9d3026; border-color: #e86b5d; }
