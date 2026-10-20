@@ -5,6 +5,49 @@ _Last reviewed: 2026-10-20 (`main` at `d78c8c7`, tagged `v0.1.25`). Repository: 
 This document separates verified behavior from planned work. It is not a claim
 of full third-party terminal workspace parity.
 
+## Status at a glance
+
+Read this section first. Everything below it is supporting detail and evidence
+for the lines here — if a line below contradicts this section, this section is
+the one to trust and fix.
+
+Legend: ✅ done and verified · 🟡 built, but a real verification gap remains (named in brackets) · ⬜ not started.
+
+### SSH and SFTP
+- ✅ SFTP pane: remote folder navigation by click, resume, visible transfer queue, drag-and-drop upload
+- ✅ SSH host-key trust for RSA and ECDSA (disposable test, in addition to the existing ed25519 coverage)
+- ✅ Multiple tunnel profiles, including remote (`-R`) and dynamic (`-D`) forwarding (disposable test)
+- ✅ SCP fallback, SSH-agent login, agent forwarding (`ForwardAgent=yes`), ProxyJump/gateway (disposable test)
+- 🟡 All of the above [most are verified against a disposable sshd or the Tauri bridge directly, not yet driven through the installed desktop app]
+- ⬜ Password-based SSH login test [blocked: this environment's WSL user cannot set a password without admin rights]
+- ⬜ Windows `ssh-agent` Windows-service login with real keys [needs administrator rights, not available here]
+- ⬜ `ask`-policy first-connection host-key prompt [by design, left to OpenSSH inside the terminal — not a Moraxterm UI]
+- ⬜ Windows Credential Manager / Linux Secret Service adapter runtime verification
+
+### UI and workspace
+- ✅ MultiExec per-target Stop control (panel and pane bar), 22/22 runtime checks, confirmed twice
+- 🟡 Detached terminal window size/position memory [in progress]
+- ⬜ Detached-window MultiExec mirroring, restore after app restart
+- ⬜ Installed-app verification for split panes, tab duplication, close confirmation [implemented in source, not yet driven through the built app]
+- ⬜ Real OS mouse drag for session folders/ordering [synthetic DOM-event tests only]
+
+### Terminal and PTY
+- ✅ Ctrl+Break delivered through ConPTY, proven against real `ping.exe` (15/15 Windows PTY matrix tests)
+- 🟡 Windows installer Start Menu / uninstaller / Add-Remove-Programs metadata [in progress]
+- ⬜ `mc` / `htop` in the real PTY [neither is installed on this host or its WSL distribution]
+- ⬜ VT conformance run (`vttest`) [needs a real pty, not safely scriptable in a quick one-off — deferred, do not retry with a one-off shell pipe]
+- ⬜ Same checks the PTY matrix already covers (Unicode, resize, alt-screen, mouse-reporting, paste), but through the installed app's xterm.js, not just the Rust PTY layer
+- ⬜ Linux terminal runtime coverage (PTY matrix is Windows-only)
+
+### Packaging and release
+- ⬜ Code signing, updater, ARM64, AppImage, Flatpak
+- ⬜ Clean-machine Windows/Linux install tests
+- ⬜ A full release gate run (rebuild + installed smoke test across all three lanes' merged work) — not yet triggered this session; see "Release gate" below for the checklist
+
+### Repository hygiene
+- ✅ 7 already-merged `agent/*` branches deleted from GitHub (user-approved); `agent/ssh`, `agent/ui`, `agent/terminal` were left untouched since they were active
+- ⬜ ~20 older, non-`agent/*`-prefixed stale branches (e.g. `ui`, `ssh`, `readme`) have not been reviewed — separate decision, not yet approved
+
 ## Verified in the current source tree
 
 - Native Tauri desktop builds exist for Windows and Linux.
