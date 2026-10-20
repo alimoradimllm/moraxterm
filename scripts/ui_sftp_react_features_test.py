@@ -33,6 +33,13 @@ try:
         js("[...document.querySelectorAll('button')].find(b=>b.innerText.trim()=='Up')?.click()"); time.sleep(2)
     checked = bool(js("(()=>{const x=[...document.querySelectorAll('label')].find(x=>x.innerText.includes('Resume transfer'))?.querySelector('input'); if(!x)return false; x.click(); return x.checked})()"))
     assert nav and checked, {"nav":nav,"resume":checked}
-    print(json.dumps({"controls":result,"listing_rows":rows,"directory_navigation":nav,"resume_toggle":checked,"react_sftp_features":"PASS"}, indent=2))
+    local = os.path.join(tempfile.gettempdir(), "react-sftp-ui-upload.bin").replace("\\", "/"); open(local, "wb").write(b"REACT_SFTP_UPLOAD" * 4096)
+    remote = srv["remote_dir"] + "/react-sftp-ui-upload.bin"
+    def set_input(label, value):
+        js("(()=>{const l=[...document.querySelectorAll('.react-sftp-actions label')].find(x=>x.innerText.trim().startsWith(%s)); const i=l&&l.querySelector('input'); const s=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set; s.call(i,%s); i.dispatchEvent(new Event('input',{bubbles:true}))})()" % (json.dumps(label), json.dumps(value)))
+    set_input("Path", local); set_input("Target", remote); js("[...document.querySelectorAll('button')].find(b=>b.innerText.trim()=='Upload')?.click()"); time.sleep(3)
+    queue = js("document.querySelector('.react-transfer-queue')?.innerText || ''")
+    assert 'upload:' in queue and ('running' in queue or 'completed' in queue or 'failed' in queue), queue
+    print(json.dumps({"controls":result,"listing_rows":rows,"directory_navigation":nav,"resume_toggle":checked,"queue_visible":True,"react_sftp_features":"PASS"}, indent=2))
 finally:
     proc.terminate(); proc.wait(timeout=10)
