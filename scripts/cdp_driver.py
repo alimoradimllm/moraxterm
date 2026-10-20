@@ -52,9 +52,12 @@ class App:
             else:
                 self.call("Input.insertText", text=ch)
 
-    def click(self, x, y):
-        self.call("Input.dispatchMouseEvent", type="mousePressed", x=x, y=y, button="left", clickCount=1)
-        self.call("Input.dispatchMouseEvent", type="mouseReleased", x=x, y=y, button="left", clickCount=1)
+    def click(self, x, y, button="left"):
+        self.call("Input.dispatchMouseEvent", type="mousePressed", x=x, y=y, button=button, clickCount=1)
+        self.call("Input.dispatchMouseEvent", type="mouseReleased", x=x, y=y, button=button, clickCount=1)
+
+    def right_click(self, x, y):
+        self.click(x, y, button="right")
 
     def shot(self, path):
         import base64

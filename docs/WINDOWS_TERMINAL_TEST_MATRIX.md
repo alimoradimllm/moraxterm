@@ -32,7 +32,7 @@ items.
 | Ctrl+D/EOF | PTY PASS (Windows semantics) | Ctrl+Z then Enter ends `sort` input in `cmd.exe`; Ctrl+D is not EOF in Windows consoles |
 | Ctrl+Z/job control | NOT SUPPORTED ON WINDOWS | Must report limitation, not emulate Unix behavior |
 | Ctrl+Break | PTY PASS | `ctrl_break_shows_interim_stats_without_stopping_ping_then_ctrl_c_stops_it`: `TerminalProcess::send_ctrl_break` (AttachConsole + `GenerateConsoleCtrlEvent`) reproduces the real asymmetry versus Ctrl+C in `ping.exe` (prints interim stats, keeps running); not wired into frontend keyboard handling or a Tauri command yet, and desktop app not tested |
-| Paste | PTY PASS | Three pasted lines each execute (`paste_of_multiple_lines_executes_each_line`); bracketed paste and the xterm.js paste path not tested |
+| Paste | PASS (installed app, right-click) | PTY level: three pasted lines each execute (`paste_of_multiple_lines_executes_each_line`). Installed app: `scripts/ui_paste_test.py` confirms right-click reads the clipboard and runs the pasted command in a local-shell pane; bracketed paste mode and detached-window/SSH-tab paste not tested |
 | `vim` alternate screen | PASS (installed app) | PTY level: Git-for-Windows `vim.exe` enters and leaves `?1049` alternate screen. Installed app: `scripts/ui_alt_screen_mouse_test.py` confirms the shell prompt/marker disappear when vim takes the alt screen and the prior main-screen content (not a blank pane) is restored on `:q!` |
 | `top`/`htop` alternate screen | PTY PASS for `less`; `top` does not use it | procps `top` in Debian WSL draws in place without `?1049h`; the alternate-screen path is covered with `less` over WSL. `htop` not tested |
 | `mc` mouse and alternate screen | NOT TESTED | `mc` not installed in the test distro |
@@ -77,6 +77,7 @@ Run with `scripts/ui_smoke_test.py` against the exe built from `main` plus the f
 | Terminal survives opening and closing a panel | PASS (after fix) |
 | MultiExec: banner, mirroring, exclude, Multi-paste, Ctrl+Shift+Insert, Exit (`scripts/ui_multiexec_test.py`, 17 checks, 3 local shells) | PASS |
 | `vim` alternate screen entered/exited correctly; mouse click reaches vim through xterm.js (`scripts/ui_alt_screen_mouse_test.py`, 14 checks, 2 runs) | PASS |
-| Clipboard paste, SSH tab | NOT TESTED |
+| Right-click pastes the clipboard into a local-shell pane and it runs (`scripts/ui_paste_test.py`, 8 checks including a left-click negative control, 2 runs) | PASS |
+| Clipboard paste into a detached window or an SSH tab | NOT TESTED |
 | Linux `.deb` / `.rpm` (CI, `build-linux.yml`, Ubuntu 24.04): clean-checkout build, 4.46 MB `.deb`, no Windows runtime archive inside, installs in a clean `ubuntu:24.04` container, shared libraries resolve, stays running 8 s under `xvfb` | PASS (headless) |
 | Linux app on a real desktop (window, input, terminal) | NOT TESTED |
