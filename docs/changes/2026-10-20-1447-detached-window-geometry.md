@@ -1,0 +1,9 @@
+# Remember detached terminal window size and position
+
+Detached terminal windows always opened at the same 900x600 default location and lost their placement after restart. The native Tauri window layer now records the last normal detached-window outer position and inner size in the app data directory, applies it when reopening a detached terminal, and writes it when the window moves, resizes, closes, or the main window exits. Saved geometry is validated before use: corrupt files, absurd dimensions, minimised sentinel coordinates, and positions with too little overlap on every currently connected monitor are ignored so a window cannot disappear onto an unplugged display. Pure geometry helpers and serialization tests live in `detach.rs`; `ui_detached_geometry_test.py` exercises the actual Windows app and Win32 window handles.
+
+Verified: `cargo test detach` passes 6/6; full `cargo test` passes 32 with 3 ignored; `node --check tauri-ui/src/main.js` passes; `npm --prefix tauri-ui run build` passes; `cargo check --manifest-path tauri-ui/src-tauri/Cargo.toml` passes; `npm run tauri -- build --no-bundle` produces the release executable; `git diff --check` passes. Runtime verification by the team lead against the built exe on an isolated profile and port 9362 passes 16/16: off-screen geometry fallback, move/resize persistence, OS-close persistence, reopen at the saved location, save on main-window exit, restore after application restart, and corrupt-file fallback. No process remained after the test.
+
+Open: only the Windows build was runtime-tested; detached windows still expose only one terminal, with no MultiExec mirroring/status, and full-screen programs may need a redraw after replay. Multiple detached windows were not tested together.
+
+Docs: updated `docs/REMAINING_WORK.md` detached-window gap and the `AGENTS.md` Known open work entry.

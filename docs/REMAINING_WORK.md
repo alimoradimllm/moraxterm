@@ -157,9 +157,11 @@ Nothing here is claimed as done.
   window shows only the terminal (no split, MultiExec status or settings; MultiExec typed in the
   window is not mirrored because the mirror runs in the main window); a window is not restored after
   an app restart; the held output is text, so a full-screen program (vim, less) already running when
-  you detach is replayed as its last 512 KiB of escape codes and can look wrong until it redraws;
-  window size and position are not remembered; only the Windows build was run; a long-running
-  process is unaffected by Detach but not tested across many windows at once.
+  you detach is replayed as its last 512 KiB of escape codes and can look wrong until it redraws. The
+  last normal window size and position are persisted and restored after restart; invalid, corrupt, or
+  off-screen geometry is ignored. Verified in the built exe (`ui_detached_geometry_test.py`, 16/16).
+  Only the Windows build was run; a long-running process is unaffected by Detach but not tested across
+  many windows at once.
 - **SFTP progress (#38):** the SFTP pane now starts transfers with `start_sftp_transfer` (not
   blocking), shows a bar with "X of Y (N%)" fed by `sftp-transfer-progress` events, a Cancel
   button, and a failure state. The OpenSSH `sftp` prints no meter on a pipe (probed), so upload

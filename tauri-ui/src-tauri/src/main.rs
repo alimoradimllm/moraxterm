@@ -381,7 +381,7 @@ fn debug_log_path(state: State<'_, TerminalManager>) -> Result<String, String> {
         .to_string_lossy()
         .into_owned())
 }
-fn session_database_path() -> Result<PathBuf, String> {
+fn app_data_base() -> Result<PathBuf, String> {
     // MORAXTERM_DATA_DIR lets tests (scripts/ui_*.py) use a throwaway database. On Windows the normal location comes from
     // the OS known-folder API, which ignores APPDATA, so overriding that variable alone does not isolate the real profile.
     let base = if let Some(dir) =
@@ -398,7 +398,73 @@ fn session_database_path() -> Result<PathBuf, String> {
             .join(".local/share/moraxterm-linux")
     };
     fs::create_dir_all(&base).map_err(|e| format!("cannot create session directory: {e}"))?;
-    Ok(base.join("sessions.sqlite3"))
+    Ok(base)
+}
+fn session_database_path() -> Result<PathBuf, String> {
+    Ok(app_data_base()?.join("sessions.sqlite3"))
+}
+
+/// Where the most recent separate terminal window was, kept in memory while windows move and written to disk when one closes.
+#[derive(Default)]
+struct DetachedGeometry(Mutex<Option<detach::Geometry>>);
+
+fn monitor_areas(app: &AppHandle) -> Vec<detach::Area> {
+    app.available_monitors()
+        .unwrap_or_default()
+        .iter()
+        .map(|m| detach::Area {
+            x: m.position().x,
+            y: m.position().y,
+            width: m.size().width,
+            height: m.size().height,
+        })
+        .collect()
+}
+
+fn load_detached_geometry(app: &AppHandle) -> Option<detach::Geometry> {
+    let text = fs::read_to_string(app_data_base().ok()?.join(detach::GEOMETRY_FILE)).ok()?;
+    detach::parse_geometry(&text).filter(|g| detach::usable(g, &monitor_areas(app)))
+}
+
+fn save_detached_geometry(geometry: &detach::Geometry) {
+    if let Ok(base) = app_data_base() {
+        let _ = fs::write(
+            base.join(detach::GEOMETRY_FILE),
+            detach::geometry_json(geometry),
+        );
+    }
+}
+
+/// Write the last known place of a separate terminal window to disk.
+fn flush_detached_geometry(app: &AppHandle) {
+    let last = app
+        .state::<DetachedGeometry>()
+        .0
+        .lock()
+        .ok()
+        .and_then(|g| *g);
+    if let Some(geometry) = last {
+        save_detached_geometry(&geometry);
+    }
+}
+
+/// Remember where a separate terminal window is now. A minimised or maximised window is skipped so the remembered size stays a normal one.
+fn note_detached_geometry(window: &tauri::Window) {
+    if window.is_minimized().unwrap_or(true) || window.is_maximized().unwrap_or(true) {
+        return;
+    }
+    let (Ok(position), Ok(size)) = (window.outer_position(), window.inner_size()) else {
+        return;
+    };
+    let geometry = detach::Geometry {
+        x: position.x,
+        y: position.y,
+        width: size.width,
+        height: size.height,
+    };
+    if let Ok(mut last) = window.app_handle().state::<DetachedGeometry>().0.lock() {
+        *last = Some(geometry);
+    }
 }
 
 #[tauri::command]
@@ -2751,11 +2817,16 @@ async fn detach_terminal(
     }
     let url = format!("index.html?detached={id}");
     let title: String = title.chars().filter(|c| !c.is_control()).take(80).collect();
-    WebviewWindowBuilder::new(&app, label, WebviewUrl::App(url.into()))
+    let window = WebviewWindowBuilder::new(&app, label, WebviewUrl::App(url.into()))
         .title(format!("{title} - Moraxterm"))
         .inner_size(900.0, 600.0)
         .build()
         .map_err(|e| e.to_string())?;
+    // Open where the last separate window was, unless that place is no longer on a connected monitor.
+    if let Some(saved) = load_detached_geometry(&app) {
+        let _ = window.set_size(tauri::PhysicalSize::new(saved.width, saved.height));
+        let _ = window.set_position(tauri::PhysicalPosition::new(saved.x, saved.y));
+    }
     Ok(())
 }
 
@@ -2832,16 +2903,25 @@ pub fn run() {
     tauri::Builder::default()
         .manage(TerminalManager::default())
         .manage(TunnelManager::default())
+        .manage(DetachedGeometry::default())
         .on_window_event(|window, event| {
+            if matches!(event, WindowEvent::Moved(_) | WindowEvent::Resized(_))
+                && detach::terminal_id_of_label(window.label()).is_some()
+            {
+                note_detached_geometry(window);
+            }
             if let WindowEvent::Destroyed = event {
                 let label = window.label();
                 if let Some(id) = detach::terminal_id_of_label(label) {
+                    flush_detached_geometry(window.app_handle());
                     // The separate window is gone: tell the main window so its tab shows the terminal again.
                     let _ = window
                         .app_handle()
                         .emit("terminal-attached", id.to_string());
                 } else if label == "main" {
-                    // Separate terminal windows must not keep the application alive once the main window is closed.
+                    // Separate terminal windows must not keep the application alive once the main window is closed. A window
+                    // still open now will not get its own Destroyed event before the exit, so save its place first.
+                    flush_detached_geometry(window.app_handle());
                     window.app_handle().exit(0);
                 }
             }
