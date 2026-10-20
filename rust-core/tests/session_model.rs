@@ -24,6 +24,19 @@ fn ssh_plan_uses_default_port_without_password() {
 }
 
 #[test]
+fn ssh_plan_selects_key_path_without_embedding_secret_material() {
+    let mut session = Session::ssh("key", "example.test", "alice");
+    session.private_key = "C:\\Users\\alice\\.ssh\\id_ed25519".into();
+    session.credential_ref = "keyring:ssh/alice@example.test".into();
+    let plan = session.ssh_plan().unwrap();
+    assert!(plan
+        .argv
+        .windows(2)
+        .any(|pair| pair == ["-i", "C:\\Users\\alice\\.ssh\\id_ed25519"]));
+    assert!(!plan.shell_command().contains("keyring:ssh"));
+}
+
+#[test]
 fn empty_host_is_rejected() {
     let session = Session::ssh("bad", "", "root");
     assert!(session.ssh_plan().is_err());
