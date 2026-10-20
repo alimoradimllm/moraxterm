@@ -286,9 +286,15 @@ Nothing here is claimed as done.
 - Add text and hex editor workflows with safe file boundaries.
 - Replace placeholder status values with measured CPU, memory, throughput,
   uptime, load, process count, latency, and per-session bandwidth.
-- Add ARM64 packages, AppImage/Flatpak where tooling is reproducible, an
-  uninstaller, Start Menu registration, Add/Remove Programs metadata, and
-  automatic update support.
+- Add ARM64 packages and AppImage/Flatpak where tooling is reproducible, and automatic update
+  support. The Windows NSIS uninstaller and Start Menu shortcut are already created
+  unconditionally by Tauri's generated installer template (not actually missing; this line was
+  stale). Add/Remove Programs metadata had a real bug: `bundle.publisher` was unset, which
+  Tauri defaults to a fragment of the app identifier (`hermes`, confirmed by inspecting the
+  built exe's version resource before the fix); `tauri.conf.json` now sets `publisher`,
+  `copyright`, `homepage`, and descriptions. Verified in the unbundled release exe's version
+  resource only; an installed NSIS build and a real Add/Remove Programs/Apps & features check
+  remain open.
 - Add code signing, dependency scanning, secret scanning, reproducible builds,
   and signed release verification. Security and dependency scans are now in CI;
   the release workflow now generates SHA-256 checksums and keyless Sigstore

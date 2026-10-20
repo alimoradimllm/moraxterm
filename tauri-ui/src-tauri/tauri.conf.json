@@ -5,5 +5,15 @@
   "identifier": "com.hermes.moraxterm-linux",
   "build": {"beforeDevCommand": "npm run dev", "devUrl": "http://localhost:1420", "beforeBuildCommand": "npm run build", "frontendDist": "../dist"},
   "app": {"withGlobalTauri": true, "windows": [{"title": "Moraxterm", "width": 1200, "height": 760, "dragDropEnabled": false}], "security": {"csp": null}},
-  "bundle": {"active": true, "targets": "all", "resources": ["resources/embedded-unix-default-packages.txt"], "icon": ["icons/icon.png", "icons/icon.ico"]}
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "resources": ["resources/embedded-unix-default-packages.txt"],
+    "icon": ["icons/icon.png", "icons/icon.ico"],
+    "publisher": "Ali Moradi",
+    "homepage": "https://github.com/alimoradimllm/moraxterm",
+    "copyright": "Copyright (c) 2026 Ali Moradi",
+    "shortDescription": "Moraxterm cross-platform terminal workspace",
+    "longDescription": "Moraxterm is a cross-platform terminal workspace with Local Shell, SSH, SFTP, WSL, Telnet, Serial, RDP, and VNC sessions, inspired by MobaXterm."
+  }
 }
