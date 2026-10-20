@@ -169,3 +169,7 @@ Moraxterm's source code is released under the [MIT License](LICENSE). Contributi
 The Windows installer also redistributes an embedded Unix runtime (MSYS2, including programs such as Fish and Bash) that keeps its own licenses. [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) lists what was checked and what is still missing, including license texts that have not been added yet.
 
 Moraxterm is an independent, clean-room implementation. It is not affiliated with or endorsed by any other terminal application or its publisher.
+
+- Searchable command snippets support only host/user/date substitution with preview and explicit MultiExec send; secrets and arbitrary variables are rejected.
+
+- 2026-10-20 — [Add safe searchable command snippets](docs/changes/2026-10-20-2302-snippets-multiexec.md)
