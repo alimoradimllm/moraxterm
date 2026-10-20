@@ -1,6 +1,6 @@
 # Moraxterm remaining work and verification status
 
-_Last reviewed: 2026-10-19 (`main` at `e094bb1`). Repository: `alimoradimllm/moraxterm`. Current release: `v0.1.24`._
+_Last reviewed: 2026-10-20 (`main` at `d78c8c7`, tagged `v0.1.25`). Repository: `alimoradimllm/moraxterm`. Current release: `v0.1.25`._
 
 This document separates verified behavior from planned work. It is not a claim
 of full third-party terminal workspace parity.
@@ -144,10 +144,16 @@ Nothing here is claimed as done.
   *using* an agent were not run.
 - **Styling:** `tauri-ui/src/style.css` belongs to the legacy `main.js` only; the React UI (`main.tsx`) imports `react-ui.css` alone, and none of `style.css`'s rules are in the built CSS. Kept until the legacy JavaScript is removed after parity.
 - **README:** real screenshots are in `docs/screenshots/` (dark and light, demo data only). The Persian page has had no native-speaker review.
-- **Release:** 0.1.25 installers (MSI and NSIS, unsigned) were built locally (#30). A `v*` tag now builds
-  Windows and Linux in CI and attaches everything to a DRAFT release; publishing (which triggers
-  signing) is a manual step after the assets are read back. See the 0.1.25 release for what was
-  actually tested.
+- **Release:** v0.1.25 is published (Windows MSI and NSIS, Linux `.deb` and `.rpm`, signed `SHA256SUMS`),
+  built by CI from one commit. Checked before publishing: the downloaded files match the signed manifest; the
+  `.deb` is 0.1.25 amd64 and contains no Windows runtime; the unpacked NSIS installer's licence files equal the
+  repository's and its exe reports 0.1.25; the exe unpacked from the CI-built installer passed smoke, MultiExec
+  (2 runs), session actions 28/28, folders 24/24 and detached windows. Not done: the installer was not installed
+  and run, no upgrade-over-0.1.24 or clean-machine test, no code-signing certificate (SmartScreen will warn), the
+  `.rpm` was never installed, the `.deb` was not run on a real Linux desktop (CI starts it under a virtual
+  display only), and the SSH, SFTP and host-key suites were not rerun on the packaged exe. The runtime archive
+  keeps its `0.1.24` name, so this release carries a `...0.1.24.tar.xz`. A `v*` tag builds both platforms and
+  attaches them to a draft; publishing (which triggers signing) is a manual step.
 - **Detached terminal windows (#39):** the Detach button in a terminal pane opens that same running
   terminal in a second OS window; the tab keeps the process and shows a "Return to this tab"
   placeholder. The window replays up to 512 KiB of held output, then follows live output without
