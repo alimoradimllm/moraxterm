@@ -7,6 +7,7 @@ import SessionEditor from './SessionEditor';
 import SessionTree from './SessionTree';
 import { allFolders } from './folders.js';
 import { planSave } from './sessionOps.js';
+import { addPane, removePane, restoreLayout } from './workspaceLayout.js';
 import type { Change } from './sessionOps.js';
 import Settings, { defaultUiSettings, UiSettings } from './Settings';
 import MacroManager, { Macro } from './MacroManager';
@@ -181,7 +182,7 @@ export default function App() {
   const [folders, setFolders] = useState<string[]>(() => { try { const value = JSON.parse(localStorage.getItem('moraxterm-session-folders') || '[]'); return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []; } catch { return []; } });
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeId, setActiveId] = useState<string>();
-  const [splitId, setSplitId] = useState<string>();
+  const [splitIds, setSplitIds] = useState<string[]>(() => { try { return restoreLayout(JSON.parse(localStorage.getItem('moraxterm-workspace-layout') || '[]'), []); } catch { return []; } });
   const [editorSession, setEditorSession] = useState<Session>();
   const [panel, setPanel] = useState<'settings' | 'macros' | 'multiexec' | 'sftp' | 'tunnel' | 'tools'>();
   const [notice, setNotice] = useState<string>();
@@ -210,7 +211,7 @@ export default function App() {
     tauriInvoke?.('close_terminal', { id }).catch(() => {});
     setTabs(current => {
       const remaining = current.filter(item => item.id !== id);
-      setSplitId(currentSplit => currentSplit === id ? undefined : currentSplit);
+      setSplitIds(current => { const next = removePane(current, id); localStorage.setItem('moraxterm-workspace-layout', JSON.stringify(next)); return next; });
       setActiveId(activeId === id ? remaining[remaining.length - 1]?.id : activeId);
       return remaining;
     });
@@ -223,8 +224,9 @@ export default function App() {
   }, []);
   const splitWorkspace = () => {
     if (!activeId) return;
-    const next = tabs.find(tab => tab.id !== activeId);
-    if (next) setSplitId(current => current === next.id ? undefined : next.id);
+    const next = tabs.find(tab => tab.id !== activeId && !splitIds.includes(tab.id));
+    if (next) { const layout = addPane(splitIds, next.id); setSplitIds(layout); localStorage.setItem('moraxterm-workspace-layout', JSON.stringify(layout)); }
+    else if (splitIds.length) { setSplitIds([]); localStorage.setItem('moraxterm-workspace-layout', '[]'); }
   };
   const openQuick = () => {
     const host = quick.trim();
@@ -306,7 +308,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey, true);
   }, [paletteOpen]);
   const active = tabs.find(tab => tab.id === activeId);
-  const split = tabs.find(tab => tab.id === splitId && tab.id !== activeId);
+  const split = tabs.find(tab => splitIds.includes(tab.id) && tab.id !== activeId);
   const duplicateActive = () => {
     if (!active) return;
     const base = `${active.session.name} (copy)`;
@@ -348,13 +350,12 @@ export default function App() {
           <nav className="react-tabs">{tabs.map(tab => <button key={tab.id} style={{ '--c': colorFor(tab.session.session_type) } as React.CSSProperties} className={tab.id === activeId ? 'active' : ''} onClick={() => setActiveId(tab.id)}><ProtocolIcon type={tab.session.session_type} />{tab.session.name}<span className={`dot ${tab.state}`} /><b onClick={event => { event.stopPropagation(); closeTab(tab.id); }}>×</b></button>)}</nav>
           <div className={split ? 'react-panes react-panes-split' : 'react-panes'}>
             {tabs.map(tab => {
-              const shown = !!active && (tab.id === active.id || tab.id === split?.id);
+              const shown = !!active && (tab.id === active.id || splitIds.includes(tab.id));
               // Every tab stays mounted: unmounting a TerminalPane closes its native process, so hiding is the only safe way to switch tabs or open a panel.
-              return <div key={tab.id} className="react-pane-slot" style={{ display: shown ? 'flex' : 'none', order: tab.id === split?.id ? 2 : 0 }}>
+              return <div key={tab.id} className="react-pane-slot" style={{ display: shown ? 'flex' : 'none', order: splitIds.indexOf(tab.id) + 1 }}>
                 <TerminalPane tab={tab} settings={uiSettings} multiExec={multiExec} excluded={excluded.has(tab.id)} execStatus={execStatus[tab.id]} onToggleExclude={() => toggleExclude(tab.id)} onInput={(id, data) => latest.current.sendInput(id, data)} onClose={() => closeTab(tab.id)} onDetach={() => setDetached(tab.id, true)} onAttach={() => { tauriInvoke?.('attach_terminal', { id: tab.id }).catch(() => {}); setDetached(tab.id, false); }} onError={error => setTabs(current => current.map(item => item.id === tab.id ? { ...item, error } : item))} onState={state => setTabs(current => current.map(item => item.id === tab.id ? { ...item, state, ...(state === 'starting' ? { error: undefined } : {}) } : item))} />
               </div>;
             })}
-            {split && <div className="react-pane-divider" aria-hidden="true" style={{ order: 1 }} />}
           </div>
         </div>}
         <footer className="react-status"><span>● Ready</span><span>CPU —</span><span>RAM —</span><span>Network —</span><span>Desktop</span></footer>
