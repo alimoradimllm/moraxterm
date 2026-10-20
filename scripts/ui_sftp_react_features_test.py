@@ -15,12 +15,14 @@ try:
         except Exception: time.sleep(.5)
     if app is None: raise SystemExit("app did not start")
     js = app.eval; session = {"name":"react-sftp-test","session_type":"SSH","host":"127.0.0.1","username":srv["user"],"port":srv["port"],"host_key_policy":"strict","working_directory":"/tmp"}
-    js("window.__TAURI__.core.invoke('save_session', {session:%s})" % json.dumps(session)); app.call("Page.reload"); time.sleep(4)
-    js("document.querySelector('button.react-session')?.click()"); time.sleep(2)
+    js("window.__TAURI__.core.invoke('save_session', {session:%s}).then(()=>location.reload())" % json.dumps(session)); time.sleep(6)
+    js("[...document.querySelectorAll('button.react-session')].find(x=>(x.innerText||'').includes('react-sftp-test'))?.click()"); time.sleep(4)
     js("[...document.querySelectorAll('button')].find(b=>(b.innerText||'').includes('SFTP'))?.click()"); time.sleep(2)
     result = json.loads(js("JSON.stringify({pane:!!document.querySelector('.react-sftp-pane'),resume:[...document.querySelectorAll('label')].some(x=>x.innerText.includes('Resume transfer')),drop:!!document.querySelector('.react-sftp-drop-zone'),up:[...document.querySelectorAll('button')].some(x=>x.innerText.trim()=='Up')})"))
     assert result["pane"] and result["resume"] and result["drop"] and result["up"], result
-    js("[...document.querySelectorAll('button')].find(b=>b.innerText.trim()=='Refresh')?.click()"); time.sleep(3)
-    rows = int(js("document.querySelectorAll('.react-sftp-row').length")); print(json.dumps({"controls":result,"listing_rows":rows,"react_sftp_features":"PASS"}, indent=2))
+    js("[...document.querySelectorAll('button')].find(b=>b.innerText.trim()=='Refresh')?.click()"); time.sleep(5)
+    rows = int(js("document.querySelectorAll('.react-sftp-row').length"));
+    if rows == 0: raise AssertionError(json.dumps({"listing_rows":rows,"footer":js("document.querySelector('.react-sftp-footer')?.innerText"),"output":js("document.querySelector('.react-sftp-list')?.innerText")}))
+    print(json.dumps({"controls":result,"listing_rows":rows,"react_sftp_features":"PASS"}, indent=2))
 finally:
     proc.terminate(); proc.wait(timeout=10)
