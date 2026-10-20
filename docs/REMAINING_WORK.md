@@ -273,7 +273,14 @@ Nothing here is claimed as done.
   displays distro name, state, and WSL version; this host reports AlmaLinux-8,
   Ubuntu, Debian, and Ubuntu-24.04.
 - WSL user discovery populates the editable WSL user field from `/etc/passwd`;
-  live Debian query succeeded. Authenticated WSL launch testing remains open.
+  live Debian query succeeded. A real WSL session is now launched end-to-end through the
+  installed app (`scripts/ui_wsl_session_test.py`): a saved WSL session (not just the editor)
+  opens a terminal pane through the app's own distribution-preflight and launch-argument code in
+  `tauri-ui/src-tauri/src/main.rs`, a real Debian bash shell answers a typed command, and the
+  shell keeps working afterward - a different, previously untested code path from the PTY-level
+  WSL coverage in `rust-core/tests/windows_pty_matrix.rs`, which drives `wsl.exe` directly and
+  bypasses the app entirely. Non-default `wsl_user`, a configured `wsl_command`, resize,
+  alternate-screen programs, and Unicode inside a WSL session through the app remain open.
 
 ## P2: advanced tools and operations
 
