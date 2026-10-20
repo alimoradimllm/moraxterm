@@ -49,15 +49,15 @@
 
 **Windows**: آخرین نصب‌کننده را از [صفحه‌ی Releases](https://github.com/alimoradimllm/moraxterm/releases/latest) بگیرید:
 
-- `Moraxterm_0.1.24_x64-setup.exe` (نصب‌کننده‌ی NSIS)
-- `Moraxterm_0.1.24_x64_en-US.msi`
+- `Moraxterm_0.1.25_x64-setup.exe` (نصب‌کننده‌ی NSIS)
+- `Moraxterm_0.1.25_x64_en-US.msi`
 
 هر release یک فایل `SHA256SUMS` با امضای Sigstore (`SHA256SUMS.sig` و `SHA256SUMS.pem`) دارد. برنامه‌ی نصب‌شده `moraxterm-linux-ui.exe` نام دارد؛ این نام از خط تولید قدیمی باقی مانده است.
 
-**Linux**: هنوز بسته‌ای منتشر نشده است. برای هر pull request و هر push به `main` در CI یک `.deb` و یک `.rpm` ساخته می‌شود. آن‌ها را از اجرای *Build Linux packages* در [تب Actions](https://github.com/alimoradimllm/moraxterm/actions/workflows/build-linux.yml) (artifact با نام `moraxterm-linux-packages`) دانلود کنید و سپس:
+**Linux**: در همین Release یک بسته‌ی `.deb` (`Moraxterm_0.1.25_amd64.deb`) و یک `.rpm` (`Moraxterm-0.1.25-1.x86_64.rpm`) هست که در CI ساخته شده‌اند. محتوای آن‌ها بررسی شده و `.deb` در یک کانتینر تمیز Ubuntu 24.04 نصب و اجرا شده است؛ اما روی یک دسکتاپ واقعی Linux اجرا **نشده‌اند** و `.rpm` هرگز نصب نشده است. بسته‌ی `.deb` را این‌طور نصب کنید:
 
 ```bash
-sudo apt install ./Moraxterm_0.1.24_amd64.deb
+sudo apt install ./Moraxterm_0.1.25_amd64.deb
 ```
 
 ## 🛠️ ساخت از روی سورس
