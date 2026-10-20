@@ -232,7 +232,7 @@ Nothing here is claimed as done.
 - Add tab movement, duplication, and detachment into a separate window. *(Tab movement and duplication implemented; detachment remains open.)*
 - Add close confirmation for active connections. *(Implemented in source; installed-app verification remains open.)*
 - Selective MultiExec targets, per-session output, status, and stop controls. *(Implemented; verified in the built exe for local shells and, since #33, across real SSH tabs: mirroring, per-tab exclusion, a stopped tab skipped, sent status. A per-target stop button is still missing.)*
-- Multiple tunnel profiles and concurrent tunnel status/logs. *(Implemented in source with saved profiles, independent start/stop/delete controls, and per-profile status/log text; `scripts/disposable_tunnel_profiles_test.sh` verifies two concurrent local forwarding profiles against a disposable loopback target. Installed UI invocation and remote/dynamic modes remain open.)*
+- Multiple tunnel profiles and concurrent tunnel status/logs. *(Implemented in source with saved profiles, independent start/stop/delete controls, and per-profile status/log text; `scripts/disposable_tunnel_profiles_test.sh` verifies two concurrent local forwarding profiles and `scripts/disposable_remote_dynamic_tunnels_test.sh` verifies remote and dynamic forwarding against disposable loopback targets. Installed UI invocation remains open.)*
 - Persist macro libraries with explicit import/export and secure content handling. *(Implemented in source with named local macros, validated JSON import, JSON export, replay, deletion, and bounded storage.)*
 
 ### Remote protocols
