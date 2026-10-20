@@ -117,6 +117,44 @@ fn credential_entry(service: &str, account: &str) -> Result<keyring::Entry, Stri
         .map_err(|error| format!("credential store unavailable: {error}"))
 }
 
+fn identity_entry(name: &str, kind: &str) -> Result<keyring::Entry, String> {
+    let name = name.trim();
+    let kind = kind.trim().to_ascii_lowercase();
+    if name.is_empty() || name.len() > 128 || !matches!(kind.as_str(), "password" | "private-key") {
+        return Err("identity name and kind are required".into());
+    }
+    credential_entry("com.moraxterm.identity", &format!("{kind}:{name}"))
+}
+
+#[tauri::command]
+fn identity_status(name: String, kind: String) -> Result<bool, String> {
+    let entry = identity_entry(&name, &kind)?;
+    match entry.get_password() {
+        Ok(_) => Ok(true),
+        Err(keyring::Error::NoEntry) => Ok(false),
+        Err(error) => Err(format!("identity lookup failed: {error}")),
+    }
+}
+
+#[tauri::command]
+fn identity_store(name: String, kind: String, secret: String) -> Result<(), String> {
+    if secret.is_empty() {
+        return Err("identity secret cannot be empty".into());
+    }
+    identity_entry(&name, &kind)?
+        .set_password(&secret)
+        .map_err(|error| format!("identity save failed: {error}"))
+}
+
+#[tauri::command]
+fn identity_delete(name: String, kind: String) -> Result<bool, String> {
+    match identity_entry(&name, &kind)?.delete_credential() {
+        Ok(()) => Ok(true),
+        Err(keyring::Error::NoEntry) => Ok(false),
+        Err(error) => Err(format!("identity delete failed: {error}")),
+    }
+}
+
 #[tauri::command]
 fn credential_status(service: String, account: String) -> Result<bool, String> {
     let entry = credential_entry(&service, &account)?;
@@ -2143,8 +2181,18 @@ fn start_terminal(
         .as_ref()
         .filter(|value| value.session_type.eq_ignore_ascii_case("SSH"))
     {
-        let account = format!("{}@{}:{}", ssh.username.trim(), ssh.host.trim(), ssh.port);
-        if let Ok(entry) = keyring::Entry::new("com.moraxterm.ssh", &account) {
+        let (service, account) = if ssh.identity_name.trim().is_empty() {
+            (
+                "com.moraxterm.ssh",
+                format!("{}@{}:{}", ssh.username.trim(), ssh.host.trim(), ssh.port),
+            )
+        } else {
+            (
+                "com.moraxterm.identity",
+                format!("password:{}", ssh.identity_name.trim()),
+            )
+        };
+        if let Ok(entry) = keyring::Entry::new(service, &account) {
             if let Ok(secret) = entry.get_password() {
                 let helper = create_ssh_askpass(&secret)?;
                 environment.insert("MORAXTERM_SSH_SECRET".into(), secret);
@@ -2863,6 +2911,9 @@ pub fn run() {
             ssh_agent_status,
             credential_store,
             credential_delete,
+            identity_status,
+            identity_store,
+            identity_delete,
             start_tunnel,
             stop_tunnel,
             xserver_status,

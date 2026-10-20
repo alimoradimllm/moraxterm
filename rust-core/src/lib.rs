@@ -163,6 +163,9 @@ pub struct Session {
     /// Secret-free reference to an OS keychain entry containing a password or key passphrase.
     #[serde(default)]
     pub credential_ref: String,
+    /// Stable user-facing identity name. Secrets remain in the OS credential store.
+    #[serde(default)]
+    pub identity_name: String,
     /// Local path to a private key. The key material itself is never persisted here.
     #[serde(default)]
     pub private_key: String,
