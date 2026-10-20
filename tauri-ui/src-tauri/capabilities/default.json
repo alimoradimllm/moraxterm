@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/capabilities.json",
   "identifier": "main-capability",
-  "description": "Permissions required by the Moraxterm main window.",
-  "windows": ["main"],
+  "description": "Permissions required by the Moraxterm main window and its detached terminal windows.",
+  "windows": ["main", "term-*"],
   "permissions": [
     "core:default",
     "core:event:allow-listen",

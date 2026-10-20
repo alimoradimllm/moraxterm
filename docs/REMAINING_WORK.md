@@ -94,7 +94,8 @@ of full third-party terminal workspace parity.
 - Workspace tabs now support drag-and-drop reordering, active-terminal close
   confirmation, and split-pane resizing through a draggable divider.
 - Windows and Linux terminal runtime coverage, authenticated remote protocol
-  tests, detached windows, advanced tools, and packaging/release work remain open.
+  tests, advanced tools, and packaging/release work remain open. A terminal can be opened in
+  its own window (see "Detached terminal windows" in the known gaps).
 
 ## Known gaps found 2026-10-18
 
@@ -145,6 +146,18 @@ Nothing here is claimed as done.
 - **README:** real screenshots are in `docs/screenshots/` (dark and light, demo data only). The Persian page has had no native-speaker review.
 - **Release:** 0.1.25 installers (MSI and NSIS, unsigned) were built (#30); no install,
   upgrade-over-0.1.24 or clean-machine test was run, and nothing is tagged or published.
+- **Detached terminal windows (#39):** the Detach button in a terminal pane opens that same running
+  terminal in a second OS window; the tab keeps the process and shows a "Return to this tab"
+  placeholder. The window replays up to 512 KiB of held output, then follows live output without
+  repeating any of it, sends its own typing and right-click paste, and sets the PTY size. Closing the
+  window (X button, Return, closing the tab) gives the terminal back; closing the main window ends
+  the app. Tested in the built exe (27 checks, three runs) with real OS window handles. Open: the
+  window shows only the terminal (no split, MultiExec status or settings; MultiExec typed in the
+  window is not mirrored because the mirror runs in the main window); a window is not restored after
+  an app restart; the held output is text, so a full-screen program (vim, less) already running when
+  you detach is replayed as its last 512 KiB of escape codes and can look wrong until it redraws;
+  window size and position are not remembered; only the Windows build was run; a long-running
+  process is unaffected by Detach but not tested across many windows at once.
 - **SFTP progress (#38):** the SFTP pane now starts transfers with `start_sftp_transfer` (not
   blocking), shows a bar with "X of Y (N%)" fed by `sftp-transfer-progress` events, a Cancel
   button, and a failure state. The OpenSSH `sftp` prints no meter on a pipe (probed), so upload

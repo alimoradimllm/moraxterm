@@ -37,6 +37,8 @@ export interface Session {
 export interface TerminalEvent {
   id?: string;
   data?: string;
+  /** Bytes the terminal had printed up to and including `data`; lets a window that replayed history drop events it already has. */
+  total?: number;
   error?: string;
 }
 
