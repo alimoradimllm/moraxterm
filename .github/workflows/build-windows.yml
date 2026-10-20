@@ -56,7 +56,8 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --repo $env:GITHUB_REPOSITORY --title "Moraxterm $tag" --generate-notes
+            # A DRAFT, never published from here: publishing fires the signing workflow, which signs only what is attached at that moment.
+            gh release create $tag --repo $env:GITHUB_REPOSITORY --title "Moraxterm $tag" --generate-notes --draft
           }
           gh release upload $tag --repo $env:GITHUB_REPOSITORY --clobber `
             tauri-ui/src-tauri/target/release/bundle/msi/*.msi `
