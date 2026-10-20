@@ -1,6 +1,7 @@
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
+pub mod vault;
 use std::fmt;
 use std::io::{Read, Write};
 

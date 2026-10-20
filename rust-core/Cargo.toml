@@ -12,6 +12,11 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 portable-pty = "0.9"
 libc = "0.2"
 anyhow = "1"
+thiserror = "2"
+argon2 = "0.5"
+base64 = "0.22"
+chacha20poly1305 = "0.10"
+rand = "0.8"
 
 [lib]
 name = "moraxterm_core"
