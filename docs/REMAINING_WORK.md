@@ -46,8 +46,7 @@ of full third-party terminal workspace parity.
 - v0.1.13 includes opt-in diagnostic logging from Settings at
   `%APPDATA%\\Moraxterm\\moraxterm-debug.log` by default.
 - Terminal state feedback now distinguishes startup, connected, failed, and
-  exited tabs. Full remote connection status, latency, retry policy, and
-  authenticated SSH lifecycle tests remain open.
+  exited tabs. Key-based SSH login through a saved private-key identity was verified in the built exe against a loopback disposable sshd; password-based SSH, passphrase-protected keys, authenticated SFTP, and the remaining remote lifecycle checks stay open.
 - The SFTP modal now provides a read-only local directory listing with
   refresh/up navigation. Transfer queue, progress, cancellation, resume,
   drag-and-drop, preview/editor, and SCP fallback work remain open.
