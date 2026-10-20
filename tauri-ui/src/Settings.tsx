@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { detectAuthCapabilities } from './authCapabilities.js';
 
 export interface UiSettings {
   appTheme: 'mobaxterm' | 'midnight' | 'light' | 'amber' | 'neon';
@@ -41,6 +42,8 @@ export default function Settings({ value, onSave, onCancel }: SettingsProps) {
         <h3 className="react-settings-heading">Behavior</h3>
         <label className="react-check"><input type="checkbox" checked={draft.highlightKeywords} onChange={event => update('highlightKeywords', event.target.checked)} /> Highlight terminal keywords</label>
         <div className="react-editor-note">Selection copies automatically and right-click pastes through the normal terminal input path. Credentials and private keys are never stored here.</div>
+        <h3 className="react-settings-heading">Biometric and FIDO2</h3>
+        <div className="react-editor-note" role="status">{detectAuthCapabilities().status}<br />Windows Hello and FIDO2 SSH integration are not enabled; no OS prompt, key generation, or authentication is attempted.</div>
       </>}
     </div>
     <footer className="react-editor-footer"><button onClick={onCancel}>Cancel</button><button className="primary" onClick={() => onSave(draft)}>Save settings</button></footer>
