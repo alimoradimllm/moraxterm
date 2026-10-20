@@ -11,6 +11,7 @@ export interface Session {
   identity_name?: string;
   /** Local private-key path only; the key bytes remain outside session storage. */
   private_key?: string;
+  certificate_path?: string;
   folder?: string;
   working_directory?: string;
   favorite?: boolean;

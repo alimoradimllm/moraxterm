@@ -30,6 +30,19 @@ fn enabled_x11_forwarding_adds_x_option() {
 }
 
 #[test]
+fn certificate_path_is_structured_and_public_export_never_contains_key_bytes() {
+    let mut session = Session::ssh("cert", "example.test", "alice");
+    session.private_key = "C:\\keys\\id_ed25519".into();
+    session.certificate_path = "C:\\keys\\id_ed25519-cert.pub".into();
+    let ssh = session.ssh_plan().unwrap().argv;
+    assert!(ssh
+        .windows(2)
+        .any(|pair| pair == ["-o", "CertificateFile=C:\\keys\\id_ed25519-cert.pub"]));
+    let export = session.public_key_export_plan().unwrap().argv;
+    assert_eq!(export, ["ssh-keygen", "-y", "-f", "C:\\keys\\id_ed25519"]);
+}
+
+#[test]
 fn default_remote_shell_does_not_append_a_command() {
     let session = Session::ssh("test", "example.test", "alice");
     let plan = session.ssh_plan().unwrap();
