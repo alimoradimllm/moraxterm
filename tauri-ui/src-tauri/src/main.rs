@@ -353,6 +353,12 @@ fn create_ssh_askpass(secret: &str) -> Result<std::path::PathBuf, String> {
     Ok(path)
 }
 
+fn cleanup_askpass(path: &mut Option<std::path::PathBuf>) {
+    if let Some(path) = path.take() {
+        let _ = std::fs::remove_file(path);
+    }
+}
+
 fn chrono_like_timestamp() -> String {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -2219,12 +2225,20 @@ fn start_terminal(
     {
         if session.host.trim().is_empty() || session.username.trim().is_empty() || session.port == 0
         {
+            cleanup_askpass(&mut askpass_path);
             return Err("SSH session requires host, username, and a valid port".into());
         }
         if !executable_available(if cfg!(windows) { "ssh.exe" } else { "ssh" }) {
+            cleanup_askpass(&mut askpass_path);
             return Err("SSH client is unavailable: ssh".into());
         }
-        let mut ssh_args = session.ssh_plan().map_err(|error| error.to_string())?.argv;
+        let mut ssh_args = match session.ssh_plan() {
+            Ok(plan) => plan.argv,
+            Err(error) => {
+                cleanup_askpass(&mut askpass_path);
+                return Err(error.to_string());
+            }
+        };
         if ssh_args.first().is_some_and(|value| value == "ssh") {
             ssh_args.remove(0);
         }
@@ -2567,18 +2581,27 @@ fn start_terminal(
             !working_directory.trim().is_empty()
         ),
     );
-    let mut process = TerminalProcess::spawn_with_env_and_cwd(
+    let mut process = match TerminalProcess::spawn_with_env_and_cwd(
         &program_name,
         &arg_refs,
         &environment,
         Some(&working_directory),
-    )
-    .map_err(|e| {
-        debug_write(&state.debug, "terminal", &format!("spawn failed error={e}"));
-        e.to_string()
-    })?;
+    ) {
+        Ok(process) => process,
+        Err(e) => {
+            cleanup_askpass(&mut askpass_path);
+            debug_write(&state.debug, "terminal", &format!("spawn failed error={e}"));
+            return Err(e.to_string());
+        }
+    };
     debug_write(&state.debug, "terminal", "spawn succeeded");
-    let mut reader = process.take_reader().map_err(|e| e.to_string())?;
+    let mut reader = match process.take_reader() {
+        Ok(reader) => reader,
+        Err(e) => {
+            cleanup_askpass(&mut askpass_path);
+            return Err(e.to_string());
+        }
+    };
     let shared = Arc::new(Mutex::new(process));
     state
         .processes
