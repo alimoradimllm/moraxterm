@@ -5,6 +5,7 @@ import { applyProgress, describeProgress, percent, type Meter, type ProgressEven
 interface SftpPaneProps { session?: Session; onClose: () => void; }
 
 interface RemoteRow { text: string; name?: string; directory: boolean; }
+interface QueueItem { id: string; label: string; state: 'running' | 'completed' | 'failed'; }
 
 function parseRows(text: string): RemoteRow[] {
   return text.split(/\r?\n/).map(line => line.trim()).filter(Boolean).map(text => {
@@ -49,6 +50,7 @@ export default function SftpPane({ session, onClose }: SftpPaneProps) {
   const [jobLabel, setJobLabel] = useState('');
   const [meters, setMeters] = useState<Record<string, Meter | null>>({});
   const [exits, setExits] = useState<Record<string, ProgressEvent>>({});
+  const [queue, setQueue] = useState<QueueItem[]>([]);
 
   useEffect(() => { setPath(session?.working_directory || '~'); }, [session?.name, session?.working_directory]);
   useEffect(() => {
@@ -62,6 +64,12 @@ export default function SftpPane({ session, onClose }: SftpPaneProps) {
     });
     return () => { progress?.then(off => off()); exit?.then(off => off()); };
   }, []);
+  useEffect(() => {
+    setQueue(items => items.map(item => {
+      const result = exits[item.id];
+      return result ? { ...item, state: result.success ? 'completed' : 'failed' } : item;
+    }));
+  }, [exits]);
 
   const exit = jobId ? exits[jobId] : undefined;
   const meter = jobId ? meters[jobId] ?? null : null;
@@ -87,7 +95,7 @@ export default function SftpPane({ session, onClose }: SftpPaneProps) {
     setBusy(true); setJobId(null); setJobLabel(direction); setStatus(`${direction} starting…`);
     try {
       const id = await invoke('start_sftp_transfer', { host, username, port, direction, localPath: operationPath, remotePath: target || path, resume }) as string;
-      setJobId(id); setStatus(`${direction} running…`);
+      setJobId(id); setQueue(items => [...items, { id, label: `${direction}: ${target || path}`, state: 'running' }]); setStatus(`${direction} running…`);
     } catch (error) { setStatus(`Failed: ${String(error)}`); setBusy(false); }
   };
   const cancel = async () => {
@@ -102,6 +110,7 @@ export default function SftpPane({ session, onClose }: SftpPaneProps) {
     <nav className="react-sftp-breadcrumbs" aria-label="Remote path breadcrumbs">{path.split('/').filter(Boolean).map((part, index, parts) => { const crumb = path.startsWith('~') ? `~/${parts.slice(1, index + 1).join('/')}` : `/${parts.slice(0, index + 1).join('/')}`; return <button key={`${crumb}-${index}`} disabled={busy || crumb === path} onClick={() => navigate(crumb)}>{part}</button>; })}</nav>
     <div className="react-sftp-body"><div className="react-sftp-list"><h3>Remote directory</h3>{rows.length ? rows.map((row, index) => row.directory && row.name ? <button className="react-sftp-row" key={`${index}-${row.text}`} onClick={() => navigate(joinRemotePath(path, row.name!))}>{row.text}</button> : <div className="react-sftp-row" key={`${index}-${row.text}`}>{row.text}</div>) : <p className="react-sftp-empty">No listing loaded.</p>}</div>
       <div className="react-sftp-actions"><h3>Operations</h3><label>Path<input value={operationPath} onChange={event => setOperationPath(event.target.value)} placeholder="/remote/file" /></label><label>Target<input value={target} onChange={event => setTarget(event.target.value)} placeholder="/remote/target or local file" /></label><label>Mode<input value={mode} onChange={event => setMode(event.target.value)} /></label><label className="react-sftp-check"><input type="checkbox" checked={resume} onChange={event => setResume(event.target.checked)} /> Resume transfer</label><div className="react-sftp-buttons"><button disabled={busy || !host} onClick={() => operate('mkdir')}>New folder</button><button disabled={busy || !host} onClick={() => operate('rename')}>Rename</button><button disabled={busy || !host} onClick={() => operate('delete')}>Delete</button><button disabled={busy || !host} onClick={() => operate('chmod')}>Permissions</button><button disabled={busy || !host} onClick={() => transfer('upload')}>Upload</button><button disabled={busy || !host} onClick={() => transfer('download')}>Download</button></div>
+        {queue.length > 0 && <div className="react-transfer-queue"><strong>Transfer queue</strong>{queue.map(item => <div className="react-transfer-queue-row" key={item.id}><span>{item.label}</span><span data-state={item.state}>{item.state}</span></div>)}</div>}
         {jobId && <div className="react-transfer" data-state={running ? 'running' : exit?.success ? 'done' : 'failed'}>
           <div className="react-transfer-bar" role="progressbar" aria-label={`${jobLabel} progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={barPercent ?? (exit?.success ? 100 : undefined)}><span style={{ width: `${exit?.success ? 100 : barPercent ?? 0}%` }} /></div>
           <div className="react-transfer-line"><span className="react-transfer-text">{exit?.success ? 'Done' : exit ? 'Stopped' : describeProgress(meter?.done, meter?.total)}</span>{running && <button onClick={cancel}>Cancel</button>}</div>
