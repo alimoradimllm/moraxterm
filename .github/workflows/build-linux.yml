@@ -16,6 +16,8 @@ on:
       - 'tauri-ui/**'
       - 'rust-core/**'
       - '.github/workflows/build-linux.yml'
+    # A version tag builds the packages and attaches them to that tag's draft release (see publish-assets below).
+    tags: ['v*']
 
 permissions:
   contents: read
@@ -128,3 +130,31 @@ jobs:
             tauri-ui/src-tauri/target/release/bundle/deb/*.deb
             tauri-ui/src-tauri/target/release/bundle/rpm/*.rpm
             SHA256SUMS-linux.txt
+
+  # Only for a version tag. It attaches the packages to the release that already exists as a DRAFT for that tag; it never creates or
+  # publishes one. Publishing is a separate, deliberate step done after the assets have been checked, because publishing fires the
+  # signing workflow, which signs whatever is attached at that moment.
+  publish-assets:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: linux
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download the built packages
+        uses: actions/download-artifact@v4
+        with:
+          name: moraxterm-linux-packages
+          path: packages
+
+      - name: Attach them to the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          is_draft=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)
+          [ "$is_draft" = "true" ] || { echo "release $GITHUB_REF_NAME is missing or already published; create it as a draft first"; exit 1; }
+          files=$(find packages -type f \( -name '*.deb' -o -name '*.rpm' -o -name 'SHA256SUMS-linux.txt' \))
+          echo "$files"
+          [ "$(echo "$files" | grep -c '\.deb$')" = "1" ] && [ "$(echo "$files" | grep -c '\.rpm$')" = "1" ] || { echo "expected exactly one .deb and one .rpm"; exit 1; }
+          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber $files

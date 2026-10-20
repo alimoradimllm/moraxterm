@@ -144,8 +144,10 @@ Nothing here is claimed as done.
   *using* an agent were not run.
 - **Styling:** `tauri-ui/src/style.css` belongs to the legacy `main.js` only; the React UI (`main.tsx`) imports `react-ui.css` alone, and none of `style.css`'s rules are in the built CSS. Kept until the legacy JavaScript is removed after parity.
 - **README:** real screenshots are in `docs/screenshots/` (dark and light, demo data only). The Persian page has had no native-speaker review.
-- **Release:** 0.1.25 installers (MSI and NSIS, unsigned) were built (#30); no install,
-  upgrade-over-0.1.24 or clean-machine test was run, and nothing is tagged or published.
+- **Release:** 0.1.25 installers (MSI and NSIS, unsigned) were built locally (#30). A `v*` tag now builds
+  Windows and Linux in CI and attaches everything to a DRAFT release; publishing (which triggers
+  signing) is a manual step after the assets are read back. See the 0.1.25 release for what was
+  actually tested.
 - **Detached terminal windows (#39):** the Detach button in a terminal pane opens that same running
   terminal in a second OS window; the tab keeps the process and shows a "Return to this tab"
   placeholder. The window replays up to 512 KiB of held output, then follows live output without
