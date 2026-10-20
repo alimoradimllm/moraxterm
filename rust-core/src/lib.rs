@@ -340,6 +340,25 @@ impl Session {
         Ok(CommandPlan::new(argv))
     }
 
+    pub fn mosh_plan(&self) -> Result<CommandPlan, ValidationError> {
+        if self.host.trim().is_empty() {
+            return Err(ValidationError::EmptyHost);
+        }
+        check_target("host", self.host.trim())?;
+        check_target("username", self.username.trim())?;
+        let port = if self.port == 0 { 22 } else { self.port };
+        if !(1..=65535).contains(&port) {
+            return Err(ValidationError::InvalidPort);
+        }
+        Ok(CommandPlan::new(vec![
+            "mosh".into(),
+            "--ssh".into(),
+            format!("ssh -p {port}"),
+            "--".into(),
+            format!("{}@{}", self.username.trim(), self.host.trim()),
+        ]))
+    }
+
     pub fn external_plan(&self, program: &str) -> Result<CommandPlan, ValidationError> {
         if self.host.trim().is_empty() {
             return Err(ValidationError::EmptyHost);

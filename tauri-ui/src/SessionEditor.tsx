@@ -10,7 +10,7 @@ interface SessionEditorProps {
   onCancel: () => void;
 }
 
-const protocols: SessionType[] = ['SSH', 'Telnet', 'Rdp', 'Vnc', 'WSL', 'Shell', 'Serial', 'Unix'];
+const protocols: SessionType[] = ['SSH', 'Mosh', 'Telnet', 'Rdp', 'Vnc', 'WSL', 'Shell', 'Serial', 'Unix'];
 
 export default function SessionEditor({ session, folders = [], onSave, onCancel }: SessionEditorProps) {
   const [draft, setDraft] = useState<Session>(session);
@@ -23,7 +23,7 @@ export default function SessionEditor({ session, folders = [], onSave, onCancel 
   const [credentialBusy, setCredentialBusy] = useState(false);
   useEffect(() => setDraft(session), [session]);
   const update = <K extends keyof Session>(key: K, value: Session[K]) => setDraft(current => ({ ...current, [key]: value }));
-  const isSsh = draft.session_type === 'SSH';
+  const isSsh = draft.session_type === 'SSH' || draft.session_type === 'Mosh';
   const isProtocol = ['WSL', 'Serial', 'Telnet', 'Rdp', 'Vnc', 'Unix'].includes(draft.session_type);
   const identityName = draft.identity_name?.trim() ?? '';
   const credentialAccount = `${draft.username?.trim() ?? ''}@${draft.host?.trim() ?? ''}:${draft.port || 22}`;

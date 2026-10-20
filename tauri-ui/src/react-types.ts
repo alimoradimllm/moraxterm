@@ -1,4 +1,4 @@
-export type SessionType = 'SSH' | 'Telnet' | 'Rdp' | 'Vnc' | 'WSL' | 'Shell' | 'Serial' | 'Unix';
+export type SessionType = 'SSH' | 'Mosh' | 'Telnet' | 'Rdp' | 'Vnc' | 'WSL' | 'Shell' | 'Serial' | 'Unix';
 
 export interface Session {
   name: string;
