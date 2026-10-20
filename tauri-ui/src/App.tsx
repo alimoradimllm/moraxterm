@@ -15,6 +15,7 @@ import { isMultiPasteShortcut, mirrorTargets, pasteTargets } from './multiexec.j
 import TunnelManager from './TunnelManager';
 import ToolsPanel from './ToolsPanel';
 import SftpPane from './SftpPane';
+import { filterPaletteCommands, isPaletteShortcut } from './commandPalette.js';
 import {
   fallbackSessions,
   normalizeTerminalEvent,
@@ -184,6 +185,9 @@ export default function App() {
   const [editorSession, setEditorSession] = useState<Session>();
   const [panel, setPanel] = useState<'settings' | 'macros' | 'multiexec' | 'sftp' | 'tunnel' | 'tools'>();
   const [notice, setNotice] = useState<string>();
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  const [paletteQuery, setPaletteQuery] = useState('');
   const [uiSettings, setUiSettings] = useState<UiSettings>(() => { try { return { ...defaultUiSettings, ...JSON.parse(localStorage.getItem('moraxterm-settings') || '{}') }; } catch { return defaultUiSettings; } });
   const [quick, setQuick] = useState('');
   const [multiExec, setMultiExec] = useState(false);
@@ -293,6 +297,14 @@ export default function App() {
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
   }, [multiExec]);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (isPaletteShortcut(event)) { event.preventDefault(); setPaletteOpen(true); setPaletteQuery(''); }
+      if (event.key === 'Escape' && paletteOpen) { event.preventDefault(); setPaletteOpen(false); }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [paletteOpen]);
   const active = tabs.find(tab => tab.id === activeId);
   const split = tabs.find(tab => tab.id === splitId && tab.id !== activeId);
   const duplicateActive = () => {
@@ -315,9 +327,14 @@ export default function App() {
     catch (error) { showNotice(`X server status failed: ${error instanceof Error ? error.message : String(error)}`); }
   };
   const overlayOpen = Boolean(editorSession || panel || !tabs.length || !active);
-  return <div className="react-app-shell">
-    <div className="react-menu-row"><span className="react-brand"><span className="logo" aria-hidden="true" dangerouslySetInnerHTML={{ __html: logoSvg }} />Moraxterm</span><button onClick={() => showNotice('Use Session or Start local terminal to open a terminal.')}>Terminal</button><button onClick={() => { setTabs([]); setPanel(undefined); }}>Sessions</button><button onClick={openView}>View</button><button onClick={openXserver}>X server</button><button onClick={openTools}>Tools</button><button onClick={() => setPanel('settings')}>Settings</button><button onClick={() => setPanel('macros')}>Macros</button><button onClick={openHelp}>Help</button></div>
-    <Toolbar multiExec={multiExec} split={Boolean(split)} onNewShell={() => openSession({ name: 'Local Shell', session_type: 'Unix', host: '', username: '', port: 0, unix_shell: 'fish' })} onHome={() => { setActiveId(undefined); setEditorSession(undefined); setPanel(undefined); }} onEdit={() => { if (active) setEditorSession(active.session); else if (sessions[0]) setEditorSession(sessions[0]); }} onSettings={() => setPanel('settings')} onMacros={() => setPanel('macros')} onMultiExec={openMultiExec} onSftp={() => setPanel('sftp')} onSplit={splitWorkspace} onDuplicate={duplicateActive} onTools={openTools} onView={openView} onTunnel={openTunnel} onHelp={openHelp} onXserver={openXserver} />
+  const commands = filterPaletteCommands([
+    { label: 'New local terminal', run: () => openSession({ name: 'Local Shell', session_type: 'Unix', host: '', username: '', port: 0, unix_shell: 'fish' }) },
+    { label: 'Open settings', run: () => setPanel('settings') }, { label: 'Open tools', run: openTools }, { label: 'Toggle focus mode', run: () => setFocusMode(value => !value) }, { label: 'Go home', run: () => { setActiveId(undefined); setPanel(undefined); } },
+  ], paletteQuery);
+  return <div className={`react-app-shell${focusMode ? ' focus-mode' : ''}`}>
+    {!focusMode && <><div className="react-menu-row"><span className="react-brand"><span className="logo" aria-hidden="true" dangerouslySetInnerHTML={{ __html: logoSvg }} />Moraxterm</span><button onClick={() => showNotice('Use Session or Start local terminal to open a terminal.')}>Terminal</button><button onClick={() => { setTabs([]); setPanel(undefined); }}>Sessions</button><button onClick={openView}>View</button><button onClick={openXserver}>X server</button><button onClick={openTools}>Tools</button><button onClick={() => setPanel('settings')}>Settings</button><button onClick={() => setPanel('macros')}>Macros</button><button onClick={openHelp}>Help</button></div>
+    <Toolbar multiExec={multiExec} split={Boolean(split)} onNewShell={() => openSession({ name: 'Local Shell', session_type: 'Unix', host: '', username: '', port: 0, unix_shell: 'fish' })} onHome={() => { setActiveId(undefined); setEditorSession(undefined); setPanel(undefined); }} onEdit={() => { if (active) setEditorSession(active.session); else if (sessions[0]) setEditorSession(sessions[0]); }} onSettings={() => setPanel('settings')} onMacros={() => setPanel('macros')} onMultiExec={openMultiExec} onSftp={() => setPanel('sftp')} onSplit={splitWorkspace} onDuplicate={duplicateActive} onTools={openTools} onView={openView} onTunnel={openTunnel} onHelp={openHelp} onXserver={openXserver} /></>}
+    {paletteOpen && <div className="react-command-palette" role="dialog" aria-label="Command palette"><input autoFocus placeholder="Type a command..." value={paletteQuery} onChange={event => setPaletteQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') setPaletteOpen(false); if (event.key === 'Enter' && commands[0]) { commands[0].run(); setPaletteOpen(false); } }} />{commands.map(command => <button key={command.label} onClick={() => { command.run(); setPaletteOpen(false); }}>{command.label}</button>)}</div>}
     {notice && <div className="react-action-notice" role="status">{notice}<button aria-label="Dismiss notice" onClick={() => setNotice(undefined)}>×</button></div>}
     <main className="react-main"><nav className="react-rail"><button className={!active ? 'active' : ''} style={{ '--c': toolColor('home') } as React.CSSProperties} onClick={() => { setActiveId(undefined); setPanel(undefined); }} title="Home"><Tile icon="home" /></button><button style={{ '--c': toolColor('tools') } as React.CSSProperties} onClick={openTools} title="Tools"><Tile icon="tools" /></button><button style={{ '--c': toolColor('tunnel') } as React.CSSProperties} onClick={openTunnel} title="Tunneling"><Tile icon="tunnel" /></button><button style={{ '--c': toolColor('view') } as React.CSSProperties} onClick={openView} title="View"><Tile icon="view" /></button></nav><SessionSidebar sessions={sessions} folders={folders} activeId={active?.session.name} onOpen={openSession} onHome={() => setActiveId(undefined)} onEdit={setEditorSession} onTools={openTools} onMacros={() => setPanel('macros')} onApply={applyChange} />
       <section className="react-workspace">
