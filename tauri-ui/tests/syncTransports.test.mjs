@@ -375,3 +375,212 @@ test('executeSync orchestrates dry-run and full sync workflows', async () => {
   assert.equal(fullRes.success, true);
   assert.equal(fullRes.remoteRevision, 'sha_rev_2');
 });
+
+
+test('GitHub transport returns explicit errors on 401 wrong credentials, 403 forbidden, and 404 not found', async () => {
+  const { downloadGitHubVault, uploadGitHubVault } = await import('../src/syncTransports.ts');
+
+  // 401 Bad credentials on download
+  const mock401 = async () => new Response(JSON.stringify({ message: 'Bad credentials' }), { status: 401 });
+  const dl401 = await downloadGitHubVault({ owner: 'alice', repo: 'vault' }, 'invalid_token', { fetchImpl: mock401 });
+  assert.equal(dl401.success, false);
+  assert.equal(dl401.statusCode, 401);
+  assert.match(dl401.error, /HTTP 401/);
+
+  // 401 on upload
+  const up401 = await uploadGitHubVault({ owner: 'alice', repo: 'vault' }, 'invalid_token', validEnvelopeJson, undefined, { fetchImpl: mock401 });
+  assert.equal(up401.success, false);
+  assert.equal(up401.statusCode, 401);
+  assert.match(up401.error, /HTTP 401/);
+
+  // 403 Forbidden on download
+  const mock403 = async () => new Response(JSON.stringify({ message: 'Forbidden' }), { status: 403 });
+  const dl403 = await downloadGitHubVault({ owner: 'alice', repo: 'vault' }, 'token', { fetchImpl: mock403 });
+  assert.equal(dl403.success, false);
+  assert.equal(dl403.statusCode, 403);
+  assert.match(dl403.error, /HTTP 403/);
+
+  // 404 Repo Not Found on upload
+  const mock404 = async () => new Response(JSON.stringify({ message: 'Not Found' }), { status: 404 });
+  const up404 = await uploadGitHubVault({ owner: 'alice', repo: 'missing-vault' }, 'token', validEnvelopeJson, undefined, { fetchImpl: mock404 });
+  assert.equal(up404.success, false);
+  assert.equal(up404.statusCode, 404);
+  assert.match(up404.error, /HTTP 404/);
+
+  // Missing token entirely returns 400 validation error
+  const noTokenDl = await downloadGitHubVault({ owner: 'alice', repo: 'vault' }, '');
+  assert.equal(noTokenDl.success, false);
+  assert.equal(noTokenDl.statusCode, 400);
+  assert.match(noTokenDl.error, /token or OAuth credential is required/);
+});
+
+test('GitHub transport strictly enforces encrypted envelopes and blocks unencrypted payloads', async () => {
+  const { uploadGitHubVault, executeSync, createMemoryKeyring, setKeyringStorage } = await import('../src/syncTransports.ts');
+  const keyring = createMemoryKeyring();
+  setKeyringStorage(keyring);
+  await keyring.storeSecret('github-repository', 'mock_token');
+
+  let fetchCalled = false;
+  const mockFetch = async () => {
+    fetchCalled = true;
+    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  };
+
+  const plaintextSessions = JSON.stringify({ sessions: [{ name: 'prod-db', host: '10.0.0.1' }] });
+  const plaintextKeys = JSON.stringify({ private_key: '-----BEGIN RSA PRIVATE KEY-----' });
+
+  // uploadGitHubVault rejects plaintext sessions without calling fetch
+  await assert.rejects(
+    async () => await uploadGitHubVault({ owner: 'alice', repo: 'vault' }, 'token', plaintextSessions, undefined, { fetchImpl: mockFetch }),
+    /Unencrypted payload rejected/
+  );
+  assert.equal(fetchCalled, false);
+
+  // uploadGitHubVault rejects plaintext private keys without calling fetch
+  await assert.rejects(
+    async () => await uploadGitHubVault({ owner: 'alice', repo: 'vault' }, 'token', plaintextKeys, undefined, { fetchImpl: mockFetch }),
+    /Unencrypted payload rejected/
+  );
+  assert.equal(fetchCalled, false);
+
+  // executeSync rejects plaintext payload before network transport
+  const execPlaintext = await executeSync({
+    providerId: 'github-repository',
+    config: { owner: 'alice', repo: 'vault' },
+    localEnvelope: plaintextSessions,
+    policy: 'reject',
+    fetchOptions: { fetchImpl: mockFetch },
+  });
+  assert.equal(execPlaintext.success, false);
+  assert.match(execPlaintext.error, /Unencrypted payload rejected/);
+  assert.equal(fetchCalled, false);
+});
+
+test('GitHub conflict resolution policies in executeSync (reject, keep-local, replace-local)', async () => {
+  const { executeSync, createMemoryKeyring, setKeyringStorage } = await import('../src/syncTransports.ts');
+  const keyring = createMemoryKeyring();
+  setKeyringStorage(keyring);
+  await keyring.storeSecret('github-repository', 'mock_token');
+
+  const remoteEnvelopeJson = JSON.stringify({
+    version: 1,
+    salt: 'remote_salt',
+    nonce: 'remote_nonce',
+    ciphertext: 'remote_cipher',
+  });
+
+  // Mock server with remoteEnvelope and revision 'remote_sha_100'
+  const createMockFetch = (onPut) => async (url, init) => {
+    if (init.method === 'GET') {
+      return new Response(JSON.stringify({
+        content: Buffer.from(remoteEnvelopeJson).toString('base64'),
+        sha: 'remote_sha_100',
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    if (init.method === 'PUT') {
+      if (onPut) onPut(JSON.parse(init.body));
+      return new Response(JSON.stringify({
+        content: { sha: 'remote_sha_200' },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    throw new Error('Unexpected method');
+  };
+
+  // 1. Conflict with policy 'reject': should fail with conflict error
+  const rejectRes = await executeSync({
+    providerId: 'github-repository',
+    config: { owner: 'alice', repo: 'vault' },
+    localEnvelope: validEnvelopeJson,
+    policy: 'reject',
+    expectedRevision: 'stale_sha',
+    fetchOptions: { fetchImpl: createMockFetch() },
+  });
+  assert.equal(rejectRes.success, false);
+  assert.equal(rejectRes.conflict, true);
+  assert.match(rejectRes.error, /Sync conflict/);
+
+  // 2. Conflict with policy 'keep-local': local envelope uploaded with latest remote sha
+  let putBody = null;
+  const keepLocalRes = await executeSync({
+    providerId: 'github-repository',
+    config: { owner: 'alice', repo: 'vault' },
+    localEnvelope: validEnvelopeJson,
+    policy: 'keep-local',
+    expectedRevision: 'stale_sha',
+    fetchOptions: { fetchImpl: createMockFetch((body) => { putBody = body; }) },
+  });
+  assert.equal(keepLocalRes.success, true);
+  assert.equal(keepLocalRes.syncedEnvelope, validEnvelopeJson);
+  assert.equal(keepLocalRes.remoteRevision, 'remote_sha_200');
+  assert.equal(putBody.sha, 'remote_sha_100'); // uses the remote's latest commit sha to overwrite
+  assert.equal(Buffer.from(putBody.content, 'base64').toString('utf8'), validEnvelopeJson);
+
+  // 3. Conflict with policy 'replace-local': remote envelope adopted without uploading
+  let putCalled = false;
+  const replaceLocalRes = await executeSync({
+    providerId: 'github-repository',
+    config: { owner: 'alice', repo: 'vault' },
+    localEnvelope: validEnvelopeJson,
+    policy: 'replace-local',
+    expectedRevision: 'stale_sha',
+    fetchOptions: { fetchImpl: createMockFetch(() => { putCalled = true; }) },
+  });
+  assert.equal(replaceLocalRes.success, true);
+  assert.equal(replaceLocalRes.syncedEnvelope, remoteEnvelopeJson);
+  assert.equal(replaceLocalRes.remoteRevision, 'remote_sha_100');
+  assert.equal(putCalled, false); // no PUT when replacing local with remote
+});
+
+test('Keyring authentication and logout/revoke lifecycle with sync execution', async () => {
+  const { executeSync, createMemoryKeyring, setKeyringStorage } = await import('../src/syncTransports.ts');
+  const keyring = createMemoryKeyring();
+  setKeyringStorage(keyring);
+
+  // Initially unauthenticated
+  assert.equal(await keyring.getStatus('github-repository'), false);
+  const unauthRes = await executeSync({
+    providerId: 'github-repository',
+    config: { owner: 'alice', repo: 'vault' },
+    localEnvelope: validEnvelopeJson,
+    policy: 'reject',
+  });
+  assert.equal(unauthRes.success, false);
+  assert.match(unauthRes.error, /Not authenticated/);
+
+  // Store credentials
+  await keyring.storeSecret('github-repository', 'mock_pat_999');
+  assert.equal(await keyring.getStatus('github-repository'), true);
+  assert.equal(await keyring.getSecret('github-repository'), 'mock_pat_999');
+
+  // Sync succeeds with authenticated mock
+  const mockFetch = async () => new Response(JSON.stringify({
+    content: Buffer.from(validEnvelopeJson).toString('base64'),
+    sha: 'rev_1',
+  }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+
+  const authRes = await executeSync({
+    providerId: 'github-repository',
+    config: { owner: 'alice', repo: 'vault' },
+    localEnvelope: validEnvelopeJson,
+    policy: 'reject',
+    dryRun: true,
+    fetchOptions: { fetchImpl: mockFetch },
+  });
+  assert.equal(authRes.success, true);
+
+  // Logout/revoke: delete secret from keyring
+  const deleted = await keyring.deleteSecret('github-repository');
+  assert.equal(deleted, true);
+  assert.equal(await keyring.getStatus('github-repository'), false);
+
+  // Subsequent sync immediately fails with Not authenticated
+  const postLogoutRes = await executeSync({
+    providerId: 'github-repository',
+    config: { owner: 'alice', repo: 'vault' },
+    localEnvelope: validEnvelopeJson,
+    policy: 'reject',
+    dryRun: true,
+  });
+  assert.equal(postLogoutRes.success, false);
+  assert.match(postLogoutRes.error, /Not authenticated/);
+});
