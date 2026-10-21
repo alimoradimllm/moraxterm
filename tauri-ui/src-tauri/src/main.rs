@@ -2291,6 +2291,19 @@ fn start_terminal(
         ("ssh".into(), ssh_args)
     } else if let Some(session) = session
         .as_ref()
+        .filter(|value| value.session_type.eq_ignore_ascii_case("Mosh"))
+    {
+        if session.host.trim().is_empty() || session.username.trim().is_empty() {
+            return Err("Mosh session requires host and username".into());
+        }
+        if !executable_available(if cfg!(windows) { "mosh.exe" } else { "mosh" }) {
+            return Err("Mosh client is unavailable: mosh".into());
+        }
+        let mut mosh_args = session.mosh_plan().map_err(|error| error.to_string())?.argv;
+        mosh_args.remove(0);
+        (if cfg!(windows) { "mosh.exe".into() } else { "mosh".into() }, mosh_args)
+    } else if let Some(session) = session
+        .as_ref()
         .filter(|value| value.session_type.eq_ignore_ascii_case("Ftp"))
     {
         if !executable_available(if cfg!(windows) { "ftp.exe" } else { "ftp" }) {

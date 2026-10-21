@@ -56,6 +56,18 @@ fn ssh_plan_selects_key_path_without_embedding_secret_material() {
 }
 
 #[test]
+fn mosh_plan_uses_structured_ssh_bootstrap_and_safe_destination() {
+    let mut session = Session::ssh("mosh", "example.test", "alice");
+    session.session_type = "Mosh".into();
+    session.port = 2200;
+    let plan = session.mosh_plan().unwrap();
+    assert_eq!(
+        plan.argv,
+        ["mosh", "--ssh", "ssh -p 2200", "--", "alice@example.test"]
+    );
+}
+
+#[test]
 fn empty_host_is_rejected() {
     let session = Session::ssh("bad", "", "root");
     assert!(session.ssh_plan().is_err());
