@@ -190,6 +190,52 @@ fn identity_delete(name: String, kind: String) -> Result<bool, String> {
         Err(error) => Err(format!("identity delete failed: {error}")),
     }
 }
+fn sync_credential_entry(provider: &str) -> Result<keyring::Entry, String> {
+    let provider = provider.trim().to_ascii_lowercase();
+    if provider.is_empty() || provider.len() > 128 {
+        return Err("sync provider name is required".into());
+    }
+    credential_entry("com.moraxterm.sync", &provider)
+}
+
+#[tauri::command]
+fn sync_credential_status(provider: String) -> Result<bool, String> {
+    let entry = sync_credential_entry(&provider)?;
+    match entry.get_password() {
+        Ok(_) => Ok(true),
+        Err(keyring::Error::NoEntry) => Ok(false),
+        Err(error) => Err(format!("sync credential lookup failed: {error}")),
+    }
+}
+
+#[tauri::command]
+fn sync_credential_store(provider: String, secret: String) -> Result<(), String> {
+    if secret.trim().is_empty() {
+        return Err("sync credential cannot be empty".into());
+    }
+    sync_credential_entry(&provider)?
+        .set_password(secret.trim())
+        .map_err(|error| format!("sync credential save failed: {error}"))
+}
+
+#[tauri::command]
+fn sync_credential_delete(provider: String) -> Result<bool, String> {
+    match sync_credential_entry(&provider)?.delete_credential() {
+        Ok(()) => Ok(true),
+        Err(keyring::Error::NoEntry) => Ok(false),
+        Err(error) => Err(format!("sync credential delete failed: {error}")),
+    }
+}
+
+#[tauri::command]
+fn sync_credential_get(provider: String) -> Result<String, String> {
+    sync_credential_entry(&provider)?
+        .get_password()
+        .map_err(|error| match error {
+            keyring::Error::NoEntry => "not authenticated".into(),
+            err => format!("sync credential lookup failed: {err}"),
+        })
+}
 
 #[tauri::command]
 fn credential_status(service: String, account: String) -> Result<bool, String> {
@@ -3087,6 +3133,10 @@ pub fn run() {
             identity_status,
             identity_store,
             identity_delete,
+            sync_credential_status,
+            sync_credential_store,
+            sync_credential_delete,
+            sync_credential_get,
             start_tunnel,
             stop_tunnel,
             xserver_status,

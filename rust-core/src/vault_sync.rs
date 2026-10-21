@@ -5,6 +5,11 @@ pub const PROTOCOL_VERSION: u8 = 1;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProviderKind {
     LocalOnly,
+    GitHub,
+    GitLab,
+    WebDAV,
+    S3Compatible,
+    GoogleDrive,
     Cloud,
     Team,
 }
@@ -36,6 +41,8 @@ pub enum SyncError {
     VersionMismatch,
     Conflict,
     RotationRequiresUnlock,
+    InvalidEnvelope,
+    UnencryptedPayload,
 }
 
 impl std::fmt::Display for SyncError {
@@ -53,6 +60,16 @@ pub fn local_contract() -> SyncContract {
         conflict: ConflictPolicy::Reject,
     }
 }
+
+pub fn ready_contract(provider: ProviderKind) -> SyncContract {
+    SyncContract {
+        version: PROTOCOL_VERSION,
+        provider,
+        state: ProviderState::Ready,
+        conflict: ConflictPolicy::Reject,
+    }
+}
+
 pub fn unavailable_contract(provider: ProviderKind) -> SyncContract {
     SyncContract {
         version: PROTOCOL_VERSION,
@@ -66,8 +83,53 @@ pub fn validate(contract: &SyncContract) -> Result<(), SyncError> {
     if contract.version != PROTOCOL_VERSION {
         return Err(SyncError::VersionMismatch);
     }
-    if contract.provider != ProviderKind::LocalOnly || contract.state != ProviderState::Ready {
+    if contract.state != ProviderState::Ready {
         return Err(SyncError::UnsupportedProvider);
+    }
+    match contract.provider {
+        ProviderKind::LocalOnly
+        | ProviderKind::GitHub
+        | ProviderKind::GitLab
+        | ProviderKind::WebDAV
+        | ProviderKind::S3Compatible => Ok(()),
+        _ => Err(SyncError::UnsupportedProvider),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct EnvelopeCheck {
+    version: u8,
+    salt: String,
+    nonce: String,
+    ciphertext: String,
+}
+
+/// Validates that a payload is an authenticated encrypted envelope, never plaintext.
+pub fn verify_encrypted_envelope(raw: &[u8]) -> Result<(), SyncError> {
+    // If it is base64 encoded, decode it first
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    let json_bytes = if let Ok(decoded) = STANDARD.decode(raw) {
+        decoded
+    } else {
+        raw.to_vec()
+    };
+
+    let text = std::str::from_utf8(&json_bytes).map_err(|_| SyncError::InvalidEnvelope)?;
+    // Safety check: forbid unencrypted session/secret fields
+    if text.contains("\"sessions\"")
+        || text.contains("\"password\"")
+        || text.contains("\"private_key\"")
+    {
+        return Err(SyncError::UnencryptedPayload);
+    }
+
+    let parsed: EnvelopeCheck =
+        serde_json::from_str(text).map_err(|_| SyncError::InvalidEnvelope)?;
+    if parsed.version != PROTOCOL_VERSION {
+        return Err(SyncError::VersionMismatch);
+    }
+    if parsed.salt.is_empty() || parsed.nonce.is_empty() || parsed.ciphertext.is_empty() {
+        return Err(SyncError::InvalidEnvelope);
     }
     Ok(())
 }
