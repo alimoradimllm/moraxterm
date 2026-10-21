@@ -1,6 +1,7 @@
 import { useState, type ChangeEvent } from 'react';
 import { readVaultPayload } from './vaultUi';
 import { tauriInvoke } from './react-types';
+import { providerStatus, syncProviders, type ConflictPolicy, type SyncProviderId } from './syncProviders';
 
 export interface UiSettings {
   appTheme: 'mobaxterm' | 'midnight' | 'light' | 'amber' | 'neon';
@@ -10,6 +11,8 @@ export interface UiSettings {
   highlightKeywords: boolean;
   aiEnabled: boolean;
   aiProvider: 'none' | 'local';
+  syncProvider: SyncProviderId;
+  syncConflictPolicy: ConflictPolicy;
 }
 
 interface SettingsProps {
@@ -19,7 +22,7 @@ interface SettingsProps {
 }
 
 export const defaultUiSettings: UiSettings = {
-  appTheme: 'mobaxterm', terminalTheme: 'mobaxterm', fontSize: 13, cursorBlink: true, highlightKeywords: true, aiEnabled: false, aiProvider: 'none',
+  appTheme: 'mobaxterm', terminalTheme: 'mobaxterm', fontSize: 13, cursorBlink: true, highlightKeywords: true, aiEnabled: false, aiProvider: 'none', syncProvider: 'local-only', syncConflictPolicy: 'reject',
 };
 
 export default function Settings({ value, onSave, onCancel }: SettingsProps) {
@@ -67,6 +70,10 @@ export default function Settings({ value, onSave, onCancel }: SettingsProps) {
         <label>Vault password<input type="password" value={vaultPassword} onChange={event => setVaultPassword(event.target.value)} autoComplete="new-password" /></label>
         <div className="react-editor-actions"><button onClick={exportVault}>Export encrypted vault</button><label className="react-button-label">Import encrypted vault<input type="file" accept=".mvx,application/octet-stream" onChange={importVault} /></label></div>
         <div className="react-editor-note" role="status">{vaultStatus} Team/cloud sync is not available.</div>
+        <h3 className="react-settings-heading">Encrypted vault sync</h3>
+        <label>Sync provider<select value={draft.syncProvider} onChange={event => update('syncProvider', event.target.value as SyncProviderId)}>{syncProviders.map(provider => <option key={provider.id} value={provider.id}>{provider.label}</option>)}</select></label>
+        <label>Conflict policy<select value={draft.syncConflictPolicy} onChange={event => update('syncConflictPolicy', event.target.value as ConflictPolicy)}><option value="reject">Reject conflicts</option><option value="keep-local">Keep local</option><option value="replace-local">Replace local</option></select></label>
+        <div className="react-editor-note" role="status">{providerStatus(draft.syncProvider).detail} Cloud/team providers are configuration contracts only; no OAuth, upload, download, or sync runs from this build. Vault data remains client-side encrypted before any future provider integration.</div>
       </>}
     </div>
     <footer className="react-editor-footer"><button onClick={onCancel}>Cancel</button><button className="primary" onClick={() => onSave(draft)}>Save settings</button></footer>
