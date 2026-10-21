@@ -140,7 +140,7 @@ export async function fetchWithRetry(
       });
       clearTimeout(timer);
 
-      // Retry on rate limit or server errors
+      // Retry on rate limit (429) or transient server errors (500-504)
       if (
         (response.status === 429 || (response.status >= 500 && response.status <= 504)) &&
         attempt < maxRetries
@@ -229,6 +229,9 @@ export async function downloadGitHubVault(
   token: string,
   options?: FetchRetryOptions
 ): Promise<SyncTransportResult> {
+  if (!token?.trim()) {
+    return { success: false, statusCode: 400, error: 'GitHub personal access token or OAuth credential is required' };
+  }
   const baseUrl = config.baseUrl || 'https://api.github.com';
   const path = config.path || 'moraxterm-vault.mvx';
   const branch = config.branch || 'main';
@@ -247,6 +250,20 @@ export async function downloadGitHubVault(
     options
   );
 
+  if (res.status === 401) {
+    return {
+      success: false,
+      error: 'GitHub authentication failed (HTTP 401): invalid or expired Personal Access Token.',
+      statusCode: 401,
+    };
+  }
+  if (res.status === 403) {
+    return {
+      success: false,
+      error: 'GitHub access forbidden (HTTP 403): token lacks repository read permissions or rate limit exceeded.',
+      statusCode: 403,
+    };
+  }
   if (res.status === 404) {
     return { success: true, envelope: undefined, remoteRevision: undefined, statusCode: 404 };
   }
@@ -281,6 +298,9 @@ export async function uploadGitHubVault(
   expectedRevision?: string,
   options?: FetchRetryOptions
 ): Promise<SyncTransportResult> {
+  if (!token?.trim()) {
+    return { success: false, statusCode: 400, error: 'GitHub personal access token or OAuth credential is required' };
+  }
   assertEncryptedEnvelope(envelope);
 
   const baseUrl = config.baseUrl || 'https://api.github.com';
@@ -312,11 +332,32 @@ export async function uploadGitHubVault(
     options
   );
 
+  if (res.status === 401) {
+    return {
+      success: false,
+      error: 'GitHub authentication failed (HTTP 401): invalid or expired Personal Access Token.',
+      statusCode: 401,
+    };
+  }
+  if (res.status === 403) {
+    return {
+      success: false,
+      error: 'GitHub access forbidden (HTTP 403): token lacks repository write permissions or rate limit exceeded.',
+      statusCode: 403,
+    };
+  }
+  if (res.status === 404) {
+    return {
+      success: false,
+      error: `GitHub repository not found (HTTP 404): check that '${config.owner}/${config.repo}' exists and your token has write access.`,
+      statusCode: 404,
+    };
+  }
   if (res.status === 409) {
     return {
       success: false,
       conflict: true,
-      error: 'Conflict: remote GitHub repository file was modified concurrently',
+      error: 'Conflict: remote GitHub repository file was modified concurrently (commit SHA mismatch).',
       statusCode: 409,
     };
   }
@@ -361,6 +402,20 @@ export async function downloadGitLabVault(
     options
   );
 
+  if (res.status === 401) {
+    return {
+      success: false,
+      error: 'GitLab authentication failed (HTTP 401): invalid or expired Private Token.',
+      statusCode: 401,
+    };
+  }
+  if (res.status === 403) {
+    return {
+      success: false,
+      error: 'GitLab access forbidden (HTTP 403): token lacks project read access.',
+      statusCode: 403,
+    };
+  }
   if (res.status === 404) {
     return { success: true, envelope: undefined, remoteRevision: undefined, statusCode: 404 };
   }
@@ -423,7 +478,6 @@ export async function uploadGitLabVault(
     options
   );
 
-  // If initial POST failed because file already exists, fallback to PUT
   if (!expectedRevision && res.status === 400) {
     res = await fetchWithRetry(
       url,
@@ -796,8 +850,8 @@ export async function executeSync(params: ExecuteSyncParams): Promise<ExecuteSyn
 
   // If remote has an envelope and it differs from local
   let targetEnvelope = localEnvelope;
-  if (downloadRes.envelope) {
-    if (expectedRevision && downloadRes.remoteRevision !== expectedRevision) {
+  if (downloadRes.envelope && downloadRes.envelope !== localEnvelope) {
+    if (!expectedRevision || downloadRes.remoteRevision !== expectedRevision) {
       try {
         targetEnvelope = resolveConflict(localEnvelope, downloadRes.envelope, policy);
       } catch (err) {
@@ -812,19 +866,22 @@ export async function executeSync(params: ExecuteSyncParams): Promise<ExecuteSyn
 
   // If local wins or remote did not exist, upload targetEnvelope
   if (targetEnvelope === localEnvelope) {
+    // If overwriting after conflict with keep-local, use the latest remote revision
+    const shaToUse = downloadRes.remoteRevision;
+
     let uploadRes: SyncTransportResult;
     switch (providerId) {
       case 'github-repository':
-        uploadRes = await uploadGitHubVault(config as unknown as GitHubSyncConfig, secret, targetEnvelope, downloadRes.remoteRevision, fetchOptions);
+        uploadRes = await uploadGitHubVault(config as unknown as GitHubSyncConfig, secret, targetEnvelope, shaToUse, fetchOptions);
         break;
       case 'gitlab-repository':
-        uploadRes = await uploadGitLabVault(config as unknown as GitLabSyncConfig, secret, targetEnvelope, downloadRes.remoteRevision, fetchOptions);
+        uploadRes = await uploadGitLabVault(config as unknown as GitLabSyncConfig, secret, targetEnvelope, shaToUse, fetchOptions);
         break;
       case 'webdav-object-store':
-        uploadRes = await uploadWebDAVVault(config as unknown as WebDAVSyncConfig, secret, targetEnvelope, downloadRes.remoteRevision, fetchOptions);
+        uploadRes = await uploadWebDAVVault(config as unknown as WebDAVSyncConfig, secret, targetEnvelope, shaToUse, fetchOptions);
         break;
       case 's3-compatible':
-        uploadRes = await uploadS3Vault(config as unknown as S3SyncConfig, secret, targetEnvelope, downloadRes.remoteRevision, fetchOptions);
+        uploadRes = await uploadS3Vault(config as unknown as S3SyncConfig, secret, targetEnvelope, shaToUse, fetchOptions);
         break;
       default:
         return { success: false, error: `Unsupported provider: ${providerId}` };
