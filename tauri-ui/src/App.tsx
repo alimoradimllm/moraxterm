@@ -90,7 +90,7 @@ function SessionSidebar({ sessions, folders, activeId, onOpen, onHome, onEdit, o
   </aside>;
 }
 
-function TerminalPane({ tab, settings, multiExec, excluded, execStatus, onToggleExclude, onInput, onState, onError, onClose, onDetach, onAttach }: { tab: Tab; settings: UiSettings; multiExec: boolean; excluded: boolean; execStatus?: 'sent' | 'failed'; onToggleExclude: () => void; onInput: (id: string, data: string) => void; onState: (state: Tab['state']) => void; onError: (error: string) => void; onClose: () => void; onDetach: () => void; onAttach: () => void }) {
+function TerminalPane({ tab, settings, multiExec, excluded, execStatus, onToggleExclude, onInput, onState, onError, onClose, onDetach, onAttach, onDuplicate }: { tab: Tab; settings: UiSettings; multiExec: boolean; excluded: boolean; execStatus?: 'sent' | 'failed'; onToggleExclude: () => void; onInput: (id: string, data: string) => void; onState: (state: Tab['state']) => void; onError: (error: string) => void; onClose: () => void; onDetach: () => void; onAttach: () => void; onDuplicate: () => void }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   // While the terminal is in its own window that window decides the PTY size, so this pane must not resize it.
@@ -171,7 +171,7 @@ function TerminalPane({ tab, settings, multiExec, excluded, execStatus, onToggle
     try { await tauriInvoke?.('resume_terminal', { id: tab.id }); onState('connected'); } catch { onState('failed'); }
   };
   return <div className="react-terminal-pane">
-    <div className="react-pane-bar"><span><ProtocolIcon type={tab.session.session_type} /> {tab.session.name}</span><span className="react-terminal-actions">{multiExec && <label className="react-exclude"><input type="checkbox" checked={excluded} onChange={onToggleExclude} /> Exclude {tab.session.name} from MultiExec mode</label>}{multiExec && !excluded && execStatus && <span className={`react-exec-status ${execStatus}`}>{execStatus === 'sent' ? '✓ sent' : '✕ failed'}</span>}<span className={`react-state ${tab.state}`}>{tab.state}</span><button onClick={resume} disabled={tab.state === 'starting'} title="Resume terminal process">Resume</button><button onClick={reconnect} title="Reconnect terminal">Reconnect</button><button onClick={tab.detached ? onAttach : detach} disabled={tab.state === 'starting' || tab.state === 'failed'} title={tab.detached ? 'Close the separate window and show the terminal here again' : 'Open this terminal in its own window'}>{tab.detached ? 'Return' : 'Detach'}</button><button onClick={onClose} title="Close terminal">Close</button></span></div>
+    <div className="react-pane-bar"><span><ProtocolIcon type={tab.session.session_type} /> {tab.session.name}</span><span className="react-terminal-actions">{multiExec && <label className="react-exclude"><input type="checkbox" checked={excluded} onChange={onToggleExclude} /> Exclude {tab.session.name} from MultiExec mode</label>}{multiExec && !excluded && execStatus && <span className={`react-exec-status ${execStatus}`}>{execStatus === 'sent' ? '✓ sent' : '✕ failed'}</span>}<span className={`react-state ${tab.state}`}>{tab.state}</span><button onClick={onDuplicate} title="Duplicate this session">Duplicate</button><button onClick={resume} disabled={tab.state === 'starting'} title="Resume terminal process">Resume</button><button onClick={reconnect} title="Reconnect terminal">Reconnect</button><button onClick={tab.detached ? onAttach : detach} disabled={tab.state === 'starting' || tab.state === 'failed'} title={tab.detached ? 'Close the separate window and show the terminal here again' : 'Open this terminal in its own window'}>{tab.detached ? 'Return' : 'Detach'}</button><button onClick={onClose} title="Close terminal">Close</button></span></div>
     {tab.error && <div className="react-terminal-error" role="alert">{tab.error}</div>}
     <div className="react-terminal-body">
       <div className="react-terminal-host" style={{ background: terminalThemeFor(settings.terminalTheme).background }} ref={hostRef} tabIndex={0} onPointerDown={() => terminalRef.current?.focus()} onKeyDown={() => terminalRef.current?.focus()} />
@@ -227,9 +227,12 @@ export default function App() {
   }, []);
   const splitWorkspace = () => {
     if (!activeId) return;
-    const next = tabs.find(tab => tab.id !== activeId && !splitIds.includes(tab.id));
-    if (next) { const layout = addPane(splitIds, next.id); setSplitIds(layout); localStorage.setItem('moraxterm-workspace-layout', JSON.stringify(layout)); }
-    else if (splitIds.length) { setSplitIds([]); localStorage.setItem('moraxterm-workspace-layout', '[]'); }
+    const requested = Number(window.prompt('Split layout: enter 2 or 4 panes', splitIds.length >= 3 ? '4' : '2'));
+    const paneCount = requested === 4 ? 4 : requested === 2 ? 2 : 0;
+    if (!paneCount) { showNotice('Choose 2 or 4 panes.'); return; }
+    let layout = splitIds.filter(id => tabs.some(tab => tab.id === id));
+    for (const next of tabs.filter(tab => tab.id !== activeId && !layout.includes(tab.id)).slice(0, paneCount - 1)) layout = addPane(layout, next.id);
+    setSplitIds(layout.slice(0, paneCount - 1)); localStorage.setItem('moraxterm-workspace-layout', JSON.stringify(layout.slice(0, paneCount - 1)));
   };
   const openQuick = () => {
     const host = quick.trim();
@@ -313,16 +316,16 @@ export default function App() {
   }, [paletteOpen]);
   const active = tabs.find(tab => tab.id === activeId);
   const split = tabs.find(tab => splitIds.includes(tab.id) && tab.id !== activeId);
-  const duplicateActive = () => {
-    if (!active) return;
-    const base = `${active.session.name} (copy)`;
+  const duplicateSession = (source: Tab) => {
+    const base = `${source.session.name} (copy)`;
     let name = base;
     let suffix = 2;
-    while (tabs.some(tab => tab.session.name === name && tab.session.session_type === active.session.session_type)) name = `${base} ${suffix++}`;
-    const copy: Tab = { id: `tab-${Date.now()}-${tabs.length}`, session: { ...active.session, name }, state: 'starting' };
+    while (tabs.some(tab => tab.session.name === name && tab.session.session_type === source.session.session_type)) name = `${base} ${suffix++}`;
+    const copy: Tab = { id: `tab-${Date.now()}-${tabs.length}`, session: { ...source.session, name }, state: 'starting' };
     setTabs(current => [...current, copy]);
     setActiveId(copy.id);
   };
+  const duplicateActive = () => { if (active) duplicateSession(active); };
   const showNotice = (message: string) => { setNotice(message); setEditorSession(undefined); };
   const openTools = () => { setNotice(undefined); setPanel('tools'); };
   const openView = () => { if (active) splitWorkspace(); else showNotice('Open a terminal before using View or Split.'); };
@@ -342,7 +345,7 @@ export default function App() {
     { label: 'Open settings', run: () => setPanel('settings') }, { label: 'Open tools', run: openTools }, { label: 'Toggle focus mode', run: () => setFocusMode(value => !value) }, { label: 'Go home', run: () => { setActiveId(undefined); setPanel(undefined); } },
   ], paletteQuery);
   return <div className={`react-app-shell${focusMode ? ' focus-mode' : ''}`}>
-    {!focusMode && <><div className="react-menu-row"><span className="react-brand"><span className="logo" aria-hidden="true" dangerouslySetInnerHTML={{ __html: logoSvg }} />Moraxterm</span><button onClick={() => showNotice('Use Session or Start local terminal to open a terminal.')}>Terminal</button><button onClick={() => { setTabs([]); setPanel(undefined); }}>Sessions</button><button onClick={openView}>View</button><button onClick={openXserver}>X server</button><button onClick={openTools}>Tools</button><button onClick={() => setPanel('settings')}>Settings</button><button onClick={previewAi}>AI preview</button><button onClick={() => setPanel('macros')}>Macros</button><button onClick={() => setPanel('snippets')}>Snippets</button><button onClick={openHelp}>Help</button></div>
+    {!focusMode && <><div className="react-menu-row"><span className="react-brand"><span className="logo" aria-hidden="true" dangerouslySetInnerHTML={{ __html: logoSvg }} />Moraxterm</span><button onClick={() => showNotice('Use Session or Start local terminal to open a terminal.')}>Terminal</button><button onClick={() => { setEditorSession({ name: 'New SSH session', session_type: 'SSH', host: '', username: '', port: 22 }); setPanel(undefined); }}>Sessions</button><button onClick={openView}>View</button><button onClick={openXserver}>X server</button><button onClick={openTools}>Tools</button><button onClick={() => setPanel('settings')}>Settings</button><button onClick={previewAi}>AI preview</button><button onClick={() => setPanel('macros')}>Macros</button><button onClick={() => setPanel('snippets')}>Snippets</button><button onClick={openHelp}>Help</button></div>
     <Toolbar multiExec={multiExec} split={Boolean(split)} onNewShell={() => openSession({ name: 'Local Shell', session_type: 'Unix', host: '', username: '', port: 0, unix_shell: 'fish' })} onHome={() => { setActiveId(undefined); setEditorSession(undefined); setPanel(undefined); }} onEdit={() => { if (active) setEditorSession(active.session); else if (sessions[0]) setEditorSession(sessions[0]); }} onSettings={() => setPanel('settings')} onMacros={() => setPanel('macros')} onMultiExec={openMultiExec} onSftp={() => setPanel('sftp')} onSplit={splitWorkspace} onDuplicate={duplicateActive} onTools={openTools} onView={openView} onTunnel={openTunnel} onHelp={openHelp} onXserver={openXserver} /></>}
     {paletteOpen && <div className="react-command-palette" role="dialog" aria-label="Command palette"><input autoFocus placeholder="Type a command..." value={paletteQuery} onChange={event => setPaletteQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') setPaletteOpen(false); if (event.key === 'Enter' && commands[0]) { commands[0].run(); setPaletteOpen(false); } }} />{commands.map(command => <button key={command.label} onClick={() => { command.run(); setPaletteOpen(false); }}>{command.label}</button>)}</div>}
     {notice && <div className="react-action-notice" role="status">{notice}<button aria-label="Dismiss notice" onClick={() => setNotice(undefined)}>×</button></div>}
@@ -361,7 +364,7 @@ export default function App() {
               const shown = !!active && (tab.id === active.id || splitIds.includes(tab.id));
               // Every tab stays mounted: unmounting a TerminalPane closes its native process, so hiding is the only safe way to switch tabs or open a panel.
               return <div key={tab.id} className="react-pane-slot" style={{ display: shown ? 'flex' : 'none', order: splitIds.indexOf(tab.id) + 1 }}>
-                <TerminalPane tab={tab} settings={uiSettings} multiExec={multiExec} excluded={excluded.has(tab.id)} execStatus={execStatus[tab.id]} onToggleExclude={() => toggleExclude(tab.id)} onInput={(id, data) => latest.current.sendInput(id, data)} onClose={() => closeTab(tab.id)} onDetach={() => setDetached(tab.id, true)} onAttach={() => { tauriInvoke?.('attach_terminal', { id: tab.id }).catch(() => {}); setDetached(tab.id, false); }} onError={error => setTabs(current => current.map(item => item.id === tab.id ? { ...item, error } : item))} onState={state => setTabs(current => current.map(item => item.id === tab.id ? { ...item, state, ...(state === 'starting' ? { error: undefined } : {}) } : item))} />
+                <TerminalPane tab={tab} settings={uiSettings} multiExec={multiExec} excluded={excluded.has(tab.id)} execStatus={execStatus[tab.id]} onToggleExclude={() => toggleExclude(tab.id)} onInput={(id, data) => latest.current.sendInput(id, data)} onClose={() => closeTab(tab.id)} onDuplicate={() => duplicateSession(tab)} onDetach={() => setDetached(tab.id, true)} onAttach={() => { tauriInvoke?.('attach_terminal', { id: tab.id }).catch(() => {}); setDetached(tab.id, false); }} onError={error => setTabs(current => current.map(item => item.id === tab.id ? { ...item, error } : item))} onState={state => setTabs(current => current.map(item => item.id === tab.id ? { ...item, state, ...(state === 'starting' ? { error: undefined } : {}) } : item))} />
               </div>;
             })}
           </div>

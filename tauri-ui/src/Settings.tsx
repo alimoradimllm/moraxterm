@@ -51,7 +51,10 @@ export default function Settings({ value, onSave, onCancel }: SettingsProps) {
     if (!vaultPassword) { setVaultStatus('Enter a vault password first.'); return; }
     try {
       const encrypted = await tauriInvoke<string>('vault_encrypt', { plaintext: JSON.stringify({ version: 1, settings: draft }), password: vaultPassword });
-      const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([encrypted], { type: 'application/octet-stream' })); link.download = 'moraxterm-vault.mvx'; link.click(); URL.revokeObjectURL(link.href); setVaultPassword(''); setVaultStatus('Encrypted vault exported; plaintext was cleared.');
+      const savePicker = (window as Window & { showSaveFilePicker?: (options?: unknown) => Promise<{ createWritable: () => Promise<{ write: (data: string) => Promise<void>; close: () => Promise<void> }> }> }).showSaveFilePicker;
+      if (savePicker) { const handle = await savePicker({ suggestedName: 'moraxterm-vault.mvx', types: [{ description: 'Encrypted Moraxterm vault', accept: { 'application/octet-stream': ['.mvx'] } }] }); const writable = await handle.createWritable(); await writable.write(encrypted); await writable.close(); }
+      else { const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([encrypted], { type: 'application/octet-stream' })); link.download = 'moraxterm-vault.mvx'; link.click(); URL.revokeObjectURL(link.href); }
+      setVaultPassword(''); setVaultStatus('Encrypted vault exported successfully; plaintext was cleared.');
     } catch (error) { setVaultStatus(error instanceof Error ? error.message : String(error)); }
   };
 
