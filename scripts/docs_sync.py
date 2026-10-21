@@ -84,14 +84,16 @@ def generate(root, verify=False):
     changed = []
     for name, (marker, limit) in TARGETS.items():
         path = Path(root) / name
-        with open(path, encoding="utf-8", newline="") as handle:
+        # Preserve legacy non-UTF-8 bytes while comparing generated blocks; some historical
+        # README content contains extended-ASCII punctuation and must not be rewritten.
+        with open(path, encoding="utf-8", errors="surrogateescape", newline="") as handle:
             raw = handle.read()  # newline="" keeps CRLF intact so line endings are never rewritten
         newline = "\r\n" if "\r\n" in raw else "\n"
         updated = replace_block(raw.replace("\r\n", "\n"), marker, render_block(root, limit))
         if updated.replace("\n", newline) != raw:
             changed.append(name)
             if not verify:
-                with open(path, "w", encoding="utf-8", newline="") as handle:
+                with open(path, "w", encoding="utf-8", errors="surrogateescape", newline="") as handle:
                     handle.write(updated.replace("\n", newline))
     return changed
 

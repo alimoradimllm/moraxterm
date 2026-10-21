@@ -1,0 +1,4 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+test('snippets render only bounded variables', async () => { const mod = await import('../src/snippets.ts'); assert.equal(mod.renderSnippet('echo {{user}}@{{host}} {{date}}', { user: 'alice', host: 'example', date: '2026-10-20' }), 'echo alice@example 2026-10-20'); assert.match(mod.renderSnippet('{{unknown}}', {}), /^$/); });
+test('snippets reject unsupported or secret-like commands and support search', async () => { const { validateSnippet, searchSnippets } = await import('../src/snippets.ts'); assert.match(validateSnippet({ name: 'x', template: 'echo {{password}}' }), /Unsupported variable/); assert.match(validateSnippet({ name: 'x', template: 'echo secret' }), /Secret-like/); assert.equal(searchSnippets([{ name: 'Deploy', template: 'git pull' }], 'deploy').length, 1); });

@@ -137,6 +137,22 @@ fn ssh_fido2_status() -> Result<String, String> {
         Ok("OpenSSH does not advertise FIDO2 security-key algorithms; SSH FIDO2 is unavailable in this runtime.".into())
     }
 }
+
+#[tauri::command]
+fn vault_encrypt(plaintext: String, password: String) -> Result<String, String> {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    moraxterm_core::vault::seal(plaintext.as_bytes(), &password)
+        .map(|data| STANDARD.encode(data))
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn vault_decrypt(envelope: String, password: String) -> Result<String, String> {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    let data = STANDARD.decode(envelope).map_err(|_| "vault format is invalid".to_string())?;
+    let plaintext = moraxterm_core::vault::open(&data, &password).map_err(|error| error.to_string())?;
+    String::from_utf8(plaintext).map_err(|_| "vault payload is not UTF-8".to_string())
+}
 fn identity_entry(name: &str, kind: &str) -> Result<keyring::Entry, String> {
     let name = name.trim();
     let kind = kind.trim().to_ascii_lowercase();
@@ -3064,6 +3080,8 @@ pub fn run() {
             ssh_agent_status,
             credential_store,
             credential_delete,
+            vault_encrypt,
+            vault_decrypt,
             ssh_public_key_plan,
             ssh_fido2_status,
             identity_status,
