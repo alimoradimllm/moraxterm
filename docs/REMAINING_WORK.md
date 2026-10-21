@@ -184,7 +184,8 @@ Nothing here is claimed as done.
   here (needs administrator rights), so "Windows agent with keys" is unit-tested only; the app
   cannot start or choose an agent, and the Settings UI has no agent selector; SSH logins
   *using* an agent were not run.
-- **Styling:** `tauri-ui/src/style.css` belongs to the legacy `main.js` only; the React UI (`main.tsx`) imports `react-ui.css` alone, and none of `style.css`'s rules are in the built CSS. Kept until the legacy JavaScript is removed after parity.
+- **Styling:** the React UI (`main.tsx`) imports `react-ui.css`; the obsolete legacy `style.css` and `main.js` files have been removed after the React migration.
+
 - **README:** real screenshots are in `docs/screenshots/` (dark and light, demo data only). The Persian page has had no native-speaker review.
 - **Release:** v0.1.25 is published (Windows MSI and NSIS, Linux `.deb` and `.rpm`, signed `SHA256SUMS`),
   built by CI from one commit. Checked before publishing: the downloaded files match the signed manifest; the

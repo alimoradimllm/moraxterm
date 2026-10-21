@@ -124,7 +124,7 @@ Tauri 2 + Vite + React + xterm.js
 | مرجع Python، CLI، GUI پشتیبان | `session_model.py`، `ssh_backend.py`، `moraxterm_cli.py`، `moraxterm_gui.py` |
 | بسته‌بندی | `build-deb.sh` (بسته‌ی Python قدیمی)، `build-tauri-windows.cmd`، `.github/workflows/` |
 
-فایل `tauri-ui/src/main.js` رابط JavaScript قدیمی است و تا رسیدن رابط React به همان قابلیت‌ها نگه داشته می‌شود.
+رابط دسکتاپ از entrypoint ری‌اکت `tauri-ui/src/main.tsx` استفاده می‌کند؛ entrypoint قدیمی JavaScript حذف شده است.
 
 ## 🔒 مدل امنیتی
 
