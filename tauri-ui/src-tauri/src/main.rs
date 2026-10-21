@@ -123,6 +123,20 @@ fn ssh_public_key_plan(private_key: String) -> Result<Vec<String>, String> {
     session.public_key_export_plan().map(|plan| plan.argv).map_err(|error| error.to_string())
 }
 
+
+#[tauri::command]
+fn ssh_fido2_status() -> Result<String, String> {
+    let output = std::process::Command::new("ssh")
+        .args(["-Q", "key"])
+        .output()
+        .map_err(|_| "OpenSSH is unavailable; FIDO2 SSH support cannot be detected".to_string())?;
+    let keys = String::from_utf8_lossy(&output.stdout);
+    if keys.lines().any(|line| line.starts_with("sk-")) {
+        Ok("OpenSSH advertises FIDO2 security-key algorithms (sk-*). Windows Hello integration and token enrollment require an external provider; no authentication was attempted.".into())
+    } else {
+        Ok("OpenSSH does not advertise FIDO2 security-key algorithms; SSH FIDO2 is unavailable in this runtime.".into())
+    }
+}
 fn identity_entry(name: &str, kind: &str) -> Result<keyring::Entry, String> {
     let name = name.trim();
     let kind = kind.trim().to_ascii_lowercase();
@@ -3032,6 +3046,7 @@ pub fn run() {
             credential_store,
             credential_delete,
             ssh_public_key_plan,
+            ssh_fido2_status,
             identity_status,
             identity_store,
             identity_delete,

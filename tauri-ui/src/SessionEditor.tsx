@@ -63,6 +63,12 @@ export default function SessionEditor({ session, folders = [], onSave, onCancel 
     try { const plan = await tauriInvoke<string[]>('ssh_public_key_plan', { privateKey: draft.private_key.trim() }); setCredentialStatus(`Public-key export ready: ${plan.join(' ')}. Review and run locally; authorized_keys installation is not provided.`); }
     catch (error) { setCredentialStatus(error instanceof Error ? error.message : String(error)); }
   };
+  const checkFido2 = async () => {
+    setCredentialBusy(true);
+    try { setCredentialStatus(await tauriInvoke<string>('ssh_fido2_status')); }
+    catch (error) { setCredentialStatus(error instanceof Error ? error.message : String(error)); }
+    finally { setCredentialBusy(false); }
+  };
   const checkPrivateKeyIdentity = async () => {
     if (!identityName) { setCredentialStatus('Enter an identity name first.'); return; }
     setCredentialBusy(true);
@@ -126,7 +132,7 @@ export default function SessionEditor({ session, folders = [], onSave, onCancel 
         <div className="react-editor-note">{credentialStatus} Passwords are stored only in the operating system credential manager, never in the session record.</div>
         <label>Private key path<input value={draft.private_key ?? ''} onChange={event => update('private_key', event.target.value || undefined)} placeholder="C:\\Users\\you\\.ssh\\id_ed25519" autoComplete="off" /></label>
         <label>SSH certificate path (optional)<input value={draft.certificate_path ?? ''} onChange={event => update('certificate_path', event.target.value || undefined)} placeholder="C:\\Users\\you\\.ssh\\id_ed25519-cert.pub" autoComplete="off" /></label>
-        <div className="react-editor-actions"><button disabled={credentialBusy} onClick={savePrivateKeyIdentity}>Save key identity</button><button disabled={credentialBusy} onClick={checkPrivateKeyIdentity}>Check key identity</button><button disabled={credentialBusy} onClick={deletePrivateKeyIdentity}>Delete key identity</button></div>
+        <div className="react-editor-actions"><button disabled={credentialBusy} onClick={checkFido2}>Check FIDO2 SSH capability</button></div><div className="react-editor-actions"><button disabled={credentialBusy} onClick={savePrivateKeyIdentity}>Save key identity</button><button disabled={credentialBusy} onClick={checkPrivateKeyIdentity}>Check key identity</button><button disabled={credentialBusy} onClick={deletePrivateKeyIdentity}>Delete key identity</button></div>
         <div className="react-editor-actions"><button disabled={credentialBusy} onClick={planPublicKeyExport}>Plan public-key export</button></div>
         <div className="react-editor-note">Only the path is saved. Private-key bytes and passphrases remain outside Moraxterm session storage.</div>
         <label>Remote shell<select value={draft.remote_shell ?? ''} onChange={event => update('remote_shell', event.target.value || undefined)}><option value="">Server default</option><option value="bash">Bash</option><option value="fish">Fish (requires remote Fish)</option><option value="fish-or-sh">Fish if available, otherwise POSIX sh</option><option value="zsh">Zsh</option><option value="sh">POSIX sh</option></select></label>
