@@ -3,6 +3,7 @@ import { tauriInvoke } from './react-types';
 
 interface ToolsPanelProps { onClose: () => void; }
 type Tool = 'ping' | 'traceroute' | 'dns' | 'port';
+const serverOptions = ['TFTP server', 'TFTP HTTP server', 'SSH server', 'SFTP server', 'Telnet server', 'NFS server', 'VNC server', 'Cron server', 'iPerf server'];
 
 export default function ToolsPanel({ onClose }: ToolsPanelProps) {
   const [tool, setTool] = useState<Tool>('ping');
@@ -49,6 +50,9 @@ export default function ToolsPanel({ onClose }: ToolsPanelProps) {
       <label>Bounded TCP scan (maximum 32 ports)<div className="react-editor-grid"><input aria-label="Start port" type="number" min="1" max="65535" value={startPort} onChange={event => setStartPort(Number(event.target.value) || 1)} /><input aria-label="End port" type="number" min="1" max="65535" value={endPort} onChange={event => setEndPort(Number(event.target.value) || 1)} /></div></label>
       <button onClick={scan} disabled={!target.trim()}>Scan port range</button>
       <pre className="react-tool-output" aria-label="Tool output">{output || 'Results will appear here.'}</pre>
+      <h3 className="react-settings-heading">Server options</h3>
+      <div className="react-editor-note">Server launchers are unavailable in this build. These entries are configuration placeholders only; no process, service, registry entry, or network listener is started.</div>
+      <div className="react-server-options">{serverOptions.map(option => <button key={option} disabled title={`${option} is unavailable`}>{option} — unavailable</button>)}</div>
     </div>
     <footer className="react-editor-footer"><button onClick={onClose}>Close</button></footer>
   </section>;
