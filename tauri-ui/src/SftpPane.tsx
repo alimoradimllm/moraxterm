@@ -8,6 +8,10 @@ function parseRows(text: string): string[] {
   return text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
 }
 
+function safeFailure(prefix: string): string {
+  return `${prefix}. Check the session identity, host-key policy, and network, then retry.`;
+}
+
 export default function SftpPane({ session, onClose }: SftpPaneProps) {
   const host = session?.host || '';
   const username = session?.username || '';
@@ -43,7 +47,7 @@ export default function SftpPane({ session, onClose }: SftpPaneProps) {
   const running = Boolean(jobId) && !exit;
   useEffect(() => {
     if (!jobId || !exit) return;
-    setStatus(exit.success ? `${jobLabel} completed` : `Failed: ${exit.message || 'transfer failed'}`);
+    setStatus(exit.success ? `${jobLabel} completed` : safeFailure(`${jobLabel} failed`));
     setBusy(false);
   }, [exit, jobId, jobLabel]);
 
@@ -51,7 +55,7 @@ export default function SftpPane({ session, onClose }: SftpPaneProps) {
   const request = async (action: () => Promise<unknown>, success: string) => {
     setBusy(true); setStatus('Working…');
     try { const result = await action(); setOutput(String(result || '')); setStatus(success); }
-    catch (error) { setStatus(`Failed: ${String(error)}`); }
+    catch { setStatus(safeFailure('SFTP request failed')); }
     finally { setBusy(false); }
   };
   const invoke = (command: string, args: Record<string, unknown>) => tauriInvoke ? tauriInvoke(command, args) : Promise.reject('Tauri bridge unavailable');
@@ -62,11 +66,11 @@ export default function SftpPane({ session, onClose }: SftpPaneProps) {
     try {
       const id = await invoke('start_sftp_transfer', { host, username, port, direction, localPath: operationPath, remotePath: target || path, resume: false }) as string;
       setJobId(id); setStatus(`${direction} running…`);
-    } catch (error) { setStatus(`Failed: ${String(error)}`); setBusy(false); }
+    } catch { setStatus(safeFailure(`${direction} failed`)); setBusy(false); }
   };
   const cancel = async () => {
     if (!jobId) return;
-    try { await invoke('cancel_sftp_transfer', { id: jobId }); } catch (error) { setStatus(`Cancel failed: ${String(error)}`); }
+    try { await invoke('cancel_sftp_transfer', { id: jobId }); } catch { setStatus(safeFailure('Cancel failed')); }
   };
   const barPercent = meter ? percent(meter.done, meter.total) : null;
 
