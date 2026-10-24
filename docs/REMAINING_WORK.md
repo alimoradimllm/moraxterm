@@ -44,6 +44,14 @@ Legend: ✅ done and verified · 🟡 built, but a real verification gap remains
 - ⬜ Clean-machine Windows/Linux install tests
 - ⬜ A full release gate run (rebuild + installed smoke test across all three lanes' merged work) — not yet triggered this session; see "Release gate" below for the checklist
 
+### Reliability pass (2026-10-24)
+- ✅ `tauri-ui/src-tauri/src/main.rs` split from 3,996 to 115 lines across 13 modules; code moved unchanged (line-multiset comparison), `cargo test` 28 passed / 3 ignored, `cargo check` has no warnings
+- ✅ No `unwrap()` existed in production code (all 58 were in tests); the one production `unreachable!()` in `sftp_operation` now returns an error
+- ✅ Split build: `ui_smoke_test.py` passed; `disposable_sftp_commands_test.sh` passed (3 tests, upload progress rises)
+- 🟡 `ui_multiexec_test.py` hangs with no output on BOTH the split build and an unmodified v0.1.28 build (same exe launch, isolated ports) [cause not found; not caused by the split; one split-build rerun instead ended in a dropped CDP connection]
+- ⬜ `ui_ssh_multiexec_test.py`, `ui_hostkey_test.py` not yet re-run on the split build
+- ⬜ Installed (NSIS) app not tested; all runtime evidence is from the `--no-bundle` exe
+
 ### Repository hygiene
 - ✅ 7 already-merged `agent/*` branches deleted from GitHub (user-approved); `agent/ssh`, `agent/ui`, `agent/terminal` were left untouched since they were active
 - ⬜ ~20 older, non-`agent/*`-prefixed stale branches (e.g. `ui`, `ssh`, `readme`) have not been reviewed — separate decision, not yet approved
